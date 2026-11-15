@@ -5,5 +5,7 @@ package com.ventas.key.hexagonal.preciocantidad.dominio.modelo;
  * por cantidad (se recalcula solo al editar el pedido) o una campaña de juguetes (solo se revierte al pasar el pedido a Ir pagando).
  */
 public enum OrigenDePrecio {
-    GRUPO, CAMPANA
+    GRUPO, CAMPANA,
+    /** El administrador puso el precio a mano en el detalle del pedido: no lo toca ni el grupo ni la campaña. El precio guardado es el que tenía antes. */
+    MANUAL
 }

@@ -15,4 +15,13 @@ public interface AvisarCodigoCampanaPort {
      * @param primeraVez    true si la persona se acaba de crear; false cuando se le vuelve a mandar su código
      */
     void enviar(PersonaCampana persona, String nombreCampana, String correoDestino, boolean primeraVez);
+
+    /**
+     * Manda el correo YA (sin esperar a que termine una transaccion) y dice si el servidor de correo lo acepto. Lo usa el administrador desde el pedido,
+     * para que la pantalla diga la verdad cuando el envio falla. Por defecto manda como {@link #enviar} y da por bueno el envio.
+     */
+    default boolean enviarAhora(PersonaCampana persona, String nombreCampana, String correoDestino, boolean primeraVez) {
+        enviar(persona, nombreCampana, correoDestino, primeraVez);
+        return true;
+    }
 }

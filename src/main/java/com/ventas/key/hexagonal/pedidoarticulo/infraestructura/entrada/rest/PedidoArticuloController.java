@@ -6,6 +6,7 @@ import com.ventas.key.hexagonal.pedidoarticulo.dominio.modelo.PedidoEditable;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.entrada.EditarArticulosCasoUso;
 import com.ventas.key.hexagonal.pedidoarticulo.infraestructura.dto.AgregarArticuloRequest;
 import com.ventas.key.hexagonal.pedidoarticulo.infraestructura.dto.CambiarArticuloRequest;
+import com.ventas.key.hexagonal.pedidoarticulo.infraestructura.dto.CambiarPrecioRequest;
 import com.ventas.key.hexagonal.pedidoarticulo.infraestructura.dto.OpcionesPromocionResponse;
 import com.ventas.key.hexagonal.pedidoarticulo.infraestructura.dto.PedidoArticulosResponse;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -70,6 +71,21 @@ public class PedidoArticuloController {
                         request.getCantidad(),
                         request.getPrecioUnitario(),
                         modoDe(request.getModo()))));
+    }
+
+    /**
+     * Cambia SOLO el precio de una linea (el administrador; con o sin campana). El total del pedido se recalcula. No aplica a lineas de un combo.
+     */
+    @PutMapping("/{pedidoId}/articulos/{detalleId}/precio")
+    public ResponseEntity<Object> cambiarPrecio(@PathVariable Integer pedidoId,
+                                                @PathVariable Integer detalleId,
+                                                @RequestBody CambiarPrecioRequest request) {
+        if (request == null || request.getPrecioUnitario() == null) {
+            ResponseGeneric<Object> error = new ResponseGeneric<>((Object) null);
+            error.setMensaje("Falta el precio nuevo");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+        return ejecutar(() -> editarArticulos.cambiarPrecio(pedidoId, detalleId, request.getPrecioUnitario()));
     }
 
     /** Saca del pedido todas las lineas de una promocion y devuelve su stock. */

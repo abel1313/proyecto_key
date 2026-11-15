@@ -15,4 +15,7 @@ public interface RepreciarPorCantidadPort {
 
     /** La línea cambió de artículo o de precio por su cuenta: el precio de antes que se recordaba ya no le corresponde. */
     void olvidarPrecioDeAntes(Integer detalleId);
+
+    /** Marca la linea con precio puesto a mano por el administrador (con el precio que tenia antes): el recalculo por cantidad ya no la toca. */
+    void fijarPrecioManual(Integer detalleId, double precioDeAntes);
 }

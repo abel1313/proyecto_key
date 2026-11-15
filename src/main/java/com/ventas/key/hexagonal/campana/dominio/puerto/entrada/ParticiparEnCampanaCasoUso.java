@@ -48,4 +48,14 @@ public interface ParticiparEnCampanaCasoUso {
     ResultadoReenvio reenviarCodigo(int pedidoId);
 
     enum ResultadoReenvio { ENVIADO, SIN_CODIGO, SIN_CORREO }
+
+    /**
+     * Manda por correo el código de campaña de este pedido (botón «Enviar código de campaña» del detalle del pedido, solo administrador).
+     * Solo con una campaña vigente. Si el pedido ya tiene persona, le reenvía su código al correo escrito (o al suyo si no se escribe uno; si la
+     * persona no tenia correo, se le guarda el escrito). Si no la tiene, la crea con estos datos (nombre y correo obligatorios), liga el pedido a ella
+     * (cuenta para la meta mientras la campaña esté activa) y le manda su código. El formato del correo se valida.
+     */
+    ResultadoEnvio enviarCodigoDePedido(int pedidoId, String correo, String nombre, String telefono);
+
+    enum ResultadoEnvio { ENVIADO, SIN_CAMPANA, CORREO_INVALIDO, FALTA_CORREO, FALTA_NOMBRE, NO_SE_PUDO_ENVIAR }
 }

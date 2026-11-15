@@ -31,6 +31,12 @@ public interface EditarArticulosCasoUso {
      */
     PedidoEditable cambiar(Integer pedidoId, Integer detalleId, CambiarArticulo peticion);
 
+    /**
+     * Cambia SOLO el precio de una linea (el articulo y la cantidad quedan igual) y recalcula el total. Es una decision del administrador: puede ser
+     * cualquier precio mayor a cero, con o sin campana. Ese precio ya no lo cambian ni el precio por cantidad ni la campana. No aplica a lineas de combo.
+     */
+    PedidoEditable cambiarPrecio(Integer pedidoId, Integer detalleId, double precioUnitario);
+
     /** Saca una promocion completa del pedido y devuelve su stock (R4). */
     PedidoEditable quitarPromocion(Integer pedidoId, Integer promocionId);
 
