@@ -83,8 +83,15 @@ public class GestionarBoletosService implements GestionarBoletosCasoUso {
     @Transactional
     public GrupoDeBoletos agregarParticipacion(Integer rifaId, Plataforma plataforma,
             String urlPerfil, NuevaParticipacion participacion) {
+        return agregarParticipacion(rifaId, plataforma, urlPerfil, participacion, null);
+    }
+
+    @Override
+    @Transactional
+    public GrupoDeBoletos agregarParticipacion(Integer rifaId, Plataforma plataforma,
+            String urlPerfil, NuevaParticipacion participacion, Integer concursanteId) {
         PerfilEnRed perfil = new PerfilEnRed(plataforma, urlPerfil);
-        GrupoDeBoletos grupo = grupoOFalla(rifaId, perfil);
+        GrupoDeBoletos grupo = concursanteId == null ? grupoOFalla(rifaId, perfil) : grupoDelConcursanteOFalla(rifaId, perfil, concursanteId);
 
         if (participacion == null || !tieneUrl(participacion)) {
             throw new CargaSinParticipacionesException();
@@ -95,7 +102,7 @@ public class GestionarBoletosService implements GestionarBoletosCasoUso {
                 Participacion.nueva(participacion.urlParticipacion(), participacion.motivo()));
 
         log.info("Rifa {}: +1 participacion en el grupo {} de {}", rifaId, urlPerfil, plataforma);
-        return grupoOFalla(rifaId, perfil);
+        return concursanteId == null ? grupoOFalla(rifaId, perfil) : grupoDelConcursanteOFalla(rifaId, perfil, concursanteId);
     }
 
     /**
@@ -198,6 +205,14 @@ public class GestionarBoletosService implements GestionarBoletosCasoUso {
                 .findFirst()
                 .orElseThrow(() -> new GrupoNoEncontradoException(String.format(
                         "El boleto %d no existe en la rifa %d", boletoId, rifaId)));
+    }
+
+    /** El grupo de ese perfil que es del concursante elegido (si el mismo perfil lo cargaron dos personas, no se confunde con el de la otra). */
+    private GrupoDeBoletos grupoDelConcursanteOFalla(Integer rifaId, PerfilEnRed perfil, Integer concursanteId) {
+        return boletos.buscarGrupo(rifaId, perfil, concursanteId)
+                .orElseThrow(() -> new GrupoNoEncontradoException(String.format(
+                        "Ese participante no tiene boletos cargados de '%s' en %s dentro de la rifa %d",
+                        perfil.urlPerfil(), perfil.plataforma(), rifaId)));
     }
 
     private GrupoDeBoletos grupoOFalla(Integer rifaId, PerfilEnRed perfil) {

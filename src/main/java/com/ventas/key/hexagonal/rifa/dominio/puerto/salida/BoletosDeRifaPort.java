@@ -24,6 +24,16 @@ public interface BoletosDeRifaPort {
     /** El grupo de ese perfil dentro de la rifa, si ya existe. */
     Optional<GrupoDeBoletos> buscarGrupo(Integer rifaId, PerfilEnRed perfil);
 
+    /**
+     * El grupo de ese perfil que es de ESE concursante. Si dos concursantes cargaron el mismo perfil en la rifa, {@link #buscarGrupo(Integer, PerfilEnRed)}
+     * devuelve el primero; esto devuelve el del concursante pedido.
+     */
+    default Optional<GrupoDeBoletos> buscarGrupo(Integer rifaId, PerfilEnRed perfil, Integer concursanteId) {
+        return gruposDeLaRifa(rifaId).stream()
+                .filter(g -> g.perfil().mismoQue(perfil) && concursanteId != null && concursanteId.equals(g.concursanteId()))
+                .findFirst();
+    }
+
     /** Crea la fila del boleto y devuelve la participacion ya con su id. */
     Participacion crearParticipacion(Integer concursanteId, PerfilEnRed perfil, Participacion nueva);
 
