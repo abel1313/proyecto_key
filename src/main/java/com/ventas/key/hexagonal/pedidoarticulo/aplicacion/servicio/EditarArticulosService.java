@@ -250,6 +250,10 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
         PedidoEditable pedido = pedidoAbierto(pedidoId);
         ArticuloDePedido linea = pedido.linea(detalleId)
                 .orElseThrow(() -> ArticuloNoEncontradoException.lineaDePedido(pedidoId, detalleId));
+        if (!pedido.admiteCambioDePrecio()) {
+            throw new EdicionPedidoException("El precio solo se puede cambiar en un pedido en Apartado o Ir pagando que todavia no esta pagado. "
+                    + "Este pedido ya esta en estado " + pedido.estado());
+        }
         if (Double.isNaN(precioUnitario) || precioUnitario <= 0) {
             throw new EdicionPedidoException("El precio tiene que ser mayor a 0");
         }
@@ -261,8 +265,19 @@ public class EditarArticulosService implements EditarArticulosCasoUso {
                     + "Para cambiarlo hay que quitar la promocion del pedido");
         }
         double precio = Math.round(precioUnitario * 100.0) / 100.0;
+        if (precio < 0.01) {
+            throw new EdicionPedidoException("El precio tiene que ser mayor a 0");
+        }
         if (Math.abs(precio - linea.precioUnitario()) < 0.005) {
             throw new EdicionPedidoException("La linea ya tiene ese precio");
+        }
+
+        // Un precio que deja el total por debajo de lo ya cobrado dejaria dinero de mas en el pedido (y lo liquidaria solo): se rechaza.
+        double totalNuevo = pedido.total() - linea.cantidad() * (linea.precioUnitario() - precio);
+        if (totalNuevo < pedido.totalPagado() - 0.005) {
+            throw new EdicionPedidoException(String.format(java.util.Locale.US,
+                    "El cliente ya pago $%.2f y con ese precio el pedido quedaria en $%.2f: le sobrarian $%.2f. "
+                            + "Pon un precio con el que el total no baje de lo que ya pago", pedido.totalPagado(), totalNuevo, pedido.totalPagado() - totalNuevo));
         }
 
         double antes = pedidos.cambiarPrecio(detalleId, precio);

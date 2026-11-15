@@ -126,8 +126,14 @@ public class RepreciarPorCantidadAdapter implements RepreciarPorCantidadPort {
      */
     private void fusionarLineasIguales(Pedido pedido, Set<Integer> variantes) {
         for (Integer varianteId : variantes) {
+            // Las lineas con precio puesto a mano o de campana NO se fusionan: perderian su marca o se mezclarian con piezas de otro origen.
+            Set<Integer> fijas = new java.util.HashSet<>();
+            List<Integer> idsDeLasMismas = pedido.getDetalles().stream()
+                    .filter(d -> d.getId() != null && d.getVariante() != null && varianteId.equals(d.getVariante().getId())).map(DetallePedido::getId).toList();
+            fijas.addAll(preciosBase.leer(idsDeLasMismas, com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.MANUAL).keySet());
+            fijas.addAll(preciosBase.leer(idsDeLasMismas, com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.CAMPANA).keySet());
             List<DetallePedido> mismas = pedido.getDetalles().stream()
-                    .filter(d -> d.getPromocion() == null && d.getVariante() != null && varianteId.equals(d.getVariante().getId()))
+                    .filter(d -> d.getPromocion() == null && d.getVariante() != null && varianteId.equals(d.getVariante().getId()) && !fijas.contains(d.getId()))
                     .toList();
             if (mismas.size() < 2) {
                 continue;

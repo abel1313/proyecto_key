@@ -280,18 +280,45 @@ public class ParticiparEnCampanaService implements ParticiparEnCampanaCasoUso {
                 return ResultadoEnvio.FALTA_CORREO;
             }
             String telefono10 = ContactoCliente.ultimos10(telefono);
-            // Si esos datos ya son de una persona con codigo, se usa la misma (nunca dos codigos a una persona).
-            Optional<PersonaCampana> existente = personas.porContacto(escrito, telefono10);
+            // Si el correo ya es de una persona con codigo, se usa la misma (nunca dos codigos a una persona). Solo por correo: si coincidiera
+            // unicamente el telefono con alguien que tiene OTRO correo, no se le manda su codigo a un correo ajeno.
+            Optional<PersonaCampana> existente = personas.porContacto(escrito, "");
+            if (existente.isEmpty() && !telefono10.isEmpty()) {
+                Optional<PersonaCampana> delTelefono = personas.porContacto(null, telefono10);
+                if (delTelefono.isPresent()) {
+                    if (delTelefono.get().correo() != null && !delTelefono.get().correo().equalsIgnoreCase(escrito)) {
+                        return ResultadoEnvio.TELEFONO_DE_OTRA_PERSONA;
+                    }
+                    existente = delTelefono;
+                    if (existente.get().correo() == null) {
+                        existente = Optional.of(personas.guardar(existente.get().conCorreo(escrito)));
+                    }
+                }
+            }
+            boolean creada = false;
             if (existente.isPresent()) {
                 persona = existente.get();
             } else {
-                if (nombre == null || nombre.isBlank()) {
+                String nombreLimpio = nombre == null ? "" : nombre.trim();
+                if (nombreLimpio.isEmpty()) {
                     return ResultadoEnvio.FALTA_NOMBRE;
                 }
-                persona = personas.guardar(new PersonaCampana(null, nuevoCodigo.get(), nombre, escrito, telefono10, true, null, null));
+                if (nombreLimpio.length() > 150) {
+                    nombreLimpio = nombreLimpio.substring(0, 150);
+                }
+                persona = personas.guardar(new PersonaCampana(null, nuevoCodigo.get(), nombreLimpio, escrito, telefono10, true, null, null));
                 primeraVez = true;
+                creada = true;
             }
-            personas.ligarPedido(campana.id(), persona.id(), pedidoId, BigDecimal.ZERO);
+            try {
+                personas.ligarPedido(campana.id(), persona.id(), pedidoId, BigDecimal.ZERO);
+            } catch (RuntimeException e) {
+                // El pedido no existe (o no se pudo ligar): no se deja una persona nueva sin compra.
+                if (creada) {
+                    personas.eliminar(persona.id());
+                }
+                return ResultadoEnvio.PEDIDO_NO_ENCONTRADO;
+            }
         }
         String destino = escrito != null ? escrito : persona.correo();
         if (destino == null || destino.isBlank()) {
