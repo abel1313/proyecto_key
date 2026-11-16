@@ -691,3 +691,21 @@ Causa (probada en QA vendiendo de una pieza en una pieza): `VentaServiceImpl.sav
 Cambio: `LigasDeVentaJdbcAdapter.existenciaActual` hace `em.flush()` antes de leer.
 Debe comprobar (QA, producto cuyo stock = piezas de sus viajes, p. ej. «Con flete B» con 10): vender 1 pieza → ya liga al viaje más viejo (no queda «sin viaje»); vender 3 piezas → las 3 ligan (primero el viaje más viejo, luego el siguiente); reporte por categoría «Piezas sin viaje» = 0; venta de más piezas que las de los viajes → solo el resto queda sin viaje; devolver la venta → las piezas vuelven al viaje. Producto con stock mayor que sus viajes (piezas viejas sin viaje) → esas salen primero, igual que antes.
 Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) responde 409 con el texto «No se pudo guardar el viaje: revisa que los productos no estén repetidos…», que no explica el motivo real.
+
+---
+
+## PENDIENTES PARA LO QUE SIGUE (anotado 2026-11-15, mientras el dueño prueba en QA)
+**Fletes**
+- **Aviso piezas > stock:** en el viaje, avisar cuando las piezas de un producto superen su stock actual (señal de que falta subir el stock). Pregunta hecha al dueño; sin respuesta aún.
+- **Piezas al traer un producto al viaje:** hoy arrancan con el stock actual (mínimo 1; los de stock 0 no entran en lote). Decisión pendiente: ¿con el stock, o vacías para que las escriba? (Recordar: las piezas del viaje NO cambian el stock; con stock 1000 y viaje de 2, las 998 «sin viaje» se venden primero y el flete tarda en recuperarse.)
+- **Viajes ya armados con 1 pieza:** botón «Poner las piezas = stock actual» (pisaría lo escrito a mano). Ofrecido, sin respuesta.
+- **Selector de categoría de Fletes** que arranque en JUGUETES (hoy arranca en «Todas»). Ofrecido, sin respuesta.
+- **Reporte por categoría:** confirmar si el flete que ya es ganancia (viaje cubierto) sale con columna propia; en el reporte del viaje sí sale.
+- Mensaje poco claro del 409 al borrar un viaje con ventas, y poder borrar viajes cuyas ventas se devolvieron.
+**Pedidos / campaña**
+- **Datos del cliente en Créditos / Abonos:** hoy «Agregar datos del cliente» solo está en el detalle del pedido; falta ahí.
+- **Correo obligatorio con campaña vigente** al registrar cliente (hoy opcional, sin verificar): sin correo no hay a dónde mandar el QR. Pregunta hecha, sin respuesta.
+- **Hallazgos de la revisión que NO se corrigieron:** doble clic puede crear dos personas con el mismo correo (índice único `LOWER(correo)` + reintento); un cliente que ya tiene código y otro correo puede recibir uno nuevo (leer el cliente del pedido y usar `porCliente`); sin límite de envíos de QR por administrador; los reportes agrupan el precio puesto a mano como «OTRO» (agregar tipo `MANUAL` a `ClasificadorTipoPrecio`); el precio manual no se ve marcado en el detalle del pedido; sin migración `personas.disponible()=false` responde «no hay campaña vigente».
+- **Correos que no llegan:** falta el resultado de `kubectl logs … | grep "Correo enviado|Error enviando correo"`; en QA el host SMTP es un nombre temporal (`hapi.hosting-mexico.net`): confirmar si ya se puede volver a `mail.novedades-jade.com.mx`. Todo fallo de envío solo queda en el log (el reenvío del QR desde el pedido ya avisa si falla).
+**Producción** (nada se sube sin orden expresa): el arreglo del NaN en el ticket (fecha) probablemente también está en producción; «Venta directa sin verificación de correo con campaña» y «cambio de precio», «enviar QR desde el pedido» y «datos del cliente» están solo en dev y qa.
+**Documentación:** sincronizar `CAMBIOS_FRONT.md` con `/home/user/documentos_front_back_nodevedaades_jade` (regla del `CLAUDE.md`); quitar marcas de versión temporales si siguen en dev/qa.
