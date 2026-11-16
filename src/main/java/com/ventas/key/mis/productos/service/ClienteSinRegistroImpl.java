@@ -54,7 +54,7 @@ public class ClienteSinRegistroImpl extends CrudAbstractServiceImpl<ClienteSinRe
         c.setSexo(dto.getSexo());
         c.setCorreoElectronico(dto.getCorreo_Electronico());
         String fecha = dto.getFecha_Nacimiento();
-        c.setFechaNacimiento(fecha == null || fecha.isBlank() ? null : LocalDate.parse(fecha));
+        c.setFechaNacimiento(fecha == null || fecha.isBlank() ? null : LocalDate.parse(fecha.trim()));
         c.setNumeroTelefonico(dto.getNumero_Telefonico());
         c.setCorreoVerificado(false);
         return iClienteSinRegistroRepository.save(c);

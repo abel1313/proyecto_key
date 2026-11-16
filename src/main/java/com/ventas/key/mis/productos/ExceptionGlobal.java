@@ -124,7 +124,7 @@ public class ExceptionGlobal {
         String tecnico = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
         log.warn("Restriccion de la base: {}", tecnico);
         boolean repetido = tecnico != null && tecnico.contains("Duplicate entry");
-        return build(repetido ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST, MensajesParaUsuario.paraUsuario(tecnico == null ? "constraint" : tecnico));
+        return build(repetido ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST, MensajesParaUsuario.traducir(tecnico));
     }
 
     @ExceptionHandler({TransactionSystemException.class, DataAccessException.class})
