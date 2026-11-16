@@ -172,10 +172,33 @@ public class RepreciarPorCantidadAdapter implements RepreciarPorCantidadPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<String> origenDelPrecio(Integer detalleId) {
+        for (com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio o : com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.values()) {
+            if (preciosBase.leer(List.of(detalleId), o).containsKey(detalleId)) {
+                return java.util.Optional.of(o.name());
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
+    @Override
     @Transactional
     public void fijarPrecioManual(Integer detalleId, double precioDeAntes) {
         preciosBase.guardar(Map.of(detalleId, BigDecimal.valueOf(precioDeAntes).setScale(2, RoundingMode.HALF_UP)),
                 com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.MANUAL);
+    }
+
+    @Override
+    @Transactional
+    public void copiarPrecioDeAntes(Integer detalleOrigenId, Integer detalleNuevoId) {
+        for (com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio o : com.ventas.key.hexagonal.preciocantidad.dominio.modelo.OrigenDePrecio.values()) {
+            BigDecimal antes = preciosBase.leer(List.of(detalleOrigenId), o).get(detalleOrigenId);
+            if (antes != null) {
+                preciosBase.guardar(Map.of(detalleNuevoId, antes), o);
+                return;
+            }
+        }
     }
 
     @Override
