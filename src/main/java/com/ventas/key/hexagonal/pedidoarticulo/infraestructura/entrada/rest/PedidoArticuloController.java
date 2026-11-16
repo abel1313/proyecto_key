@@ -6,7 +6,9 @@ import com.ventas.key.hexagonal.pedidoarticulo.dominio.modelo.PedidoEditable;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.entrada.EditarArticulosCasoUso;
 import com.ventas.key.hexagonal.pedidoarticulo.infraestructura.dto.AgregarArticuloRequest;
 import com.ventas.key.hexagonal.pedidoarticulo.infraestructura.dto.CambiarArticuloRequest;
+import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.entrada.DividirPedidoCasoUso;
 import com.ventas.key.hexagonal.pedidoarticulo.infraestructura.dto.CambiarPrecioRequest;
+import com.ventas.key.hexagonal.pedidoarticulo.infraestructura.dto.PasarAClienteRequest;
 import com.ventas.key.hexagonal.pedidoarticulo.infraestructura.dto.OpcionesPromocionResponse;
 import com.ventas.key.hexagonal.pedidoarticulo.infraestructura.dto.PedidoArticulosResponse;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
@@ -42,6 +44,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PedidoArticuloController {
 
     private final EditarArticulosCasoUso editarArticulos;
+    private final DividirPedidoCasoUso dividirPedido;
     private final CacheService cacheService;
 
     /** Agrega un articulo al pedido, a precio de catalogo. */
@@ -86,6 +89,34 @@ public class PedidoArticuloController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         }
         return ejecutar(() -> editarArticulos.cambiarPrecio(pedidoId, detalleId, request.getPrecioUnitario()));
+    }
+
+    /**
+     * Pasa un articulo (o parte de sus piezas) a OTRO cliente, en un pedido nuevo (solo el administrador; solo Apartado o Ir pagando sin liquidar).
+     * Los abonos se quedan en este pedido. Responde con el id del pedido nuevo.
+     */
+    @PostMapping("/{pedidoId}/articulos/{detalleId}/pasar-a-cliente")
+    public ResponseEntity<Object> pasarACliente(@PathVariable Integer pedidoId,
+                                                @PathVariable Integer detalleId,
+                                                @RequestBody PasarAClienteRequest request) {
+        try {
+            int nuevo = dividirPedido.pasarArticuloACliente(pedidoId, detalleId, request.getCantidad(),
+                    new DividirPedidoCasoUso.DestinoCliente(request.getClienteId(), request.getClienteSinRegistroId()));
+            cacheService.evictAll();
+            ResponseGeneric<java.util.Map<String, Integer>> ok = new ResponseGeneric<>(java.util.Map.of("pedidoNuevoId", nuevo));
+            ok.setMensaje("Se creó el pedido #" + nuevo);
+            return ResponseEntity.ok(ok);
+        } catch (EdicionPedidoException e) {
+            ResponseGeneric<Object> error = new ResponseGeneric<>((Object) null);
+            error.setMensaje(e.getMessage());
+            return ResponseEntity.status(e instanceof com.ventas.key.hexagonal.pedidoarticulo.dominio.excepcion.ArticuloNoEncontradoException
+                    ? HttpStatus.NOT_FOUND : HttpStatus.BAD_REQUEST).body(error);
+        } catch (RuntimeException e) {
+            log.error("Error inesperado pasando un articulo a otro cliente", e);
+            ResponseGeneric<Object> error = new ResponseGeneric<>((Object) null);
+            error.setMensaje("No se pudo pasar el artículo: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
     }
 
     /** Saca del pedido todas las lineas de una promocion y devuelve su stock. */

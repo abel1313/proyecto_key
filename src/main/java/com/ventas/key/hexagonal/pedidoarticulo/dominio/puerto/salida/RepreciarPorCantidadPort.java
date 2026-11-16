@@ -16,6 +16,15 @@ public interface RepreciarPorCantidadPort {
     /** La línea cambió de artículo o de precio por su cuenta: el precio de antes que se recordaba ya no le corresponde. */
     void olvidarPrecioDeAntes(Integer detalleId);
 
+    /** De donde viene el precio de la linea si no es el normal: {@code GRUPO}, {@code CAMPANA} o {@code MANUAL}; vacio si es un precio normal. */
+    default java.util.Optional<String> origenDelPrecio(Integer detalleId) {
+        return java.util.Optional.empty();
+    }
+
+    /** La linea nueva hereda de la de origen el precio de antes y su origen (GRUPO o MANUAL): asi el recalculo decide con las piezas del pedido nuevo. */
+    default void copiarPrecioDeAntes(Integer detalleOrigenId, Integer detalleNuevoId) {
+    }
+
     /** Marca la linea con precio puesto a mano por el administrador (con el precio que tenia antes): el recalculo por cantidad ya no la toca. */
     void fijarPrecioManual(Integer detalleId, double precioDeAntes);
 }

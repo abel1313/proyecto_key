@@ -23935,3 +23935,19 @@ Orden: más piezas vendidas primero, luego por nombre. 400 con `mensaje` si falt
 ## Datos del cliente en un pedido: también cuando el cliente solo tiene nombre (2026-11-15) — ajuste
 - `sinDatosDelCliente: true` en el detalle del pedido ahora también sale cuando el pedido tiene un **cliente sin registro que solo tiene nombre** (sin correo ni teléfono), además de los pedidos sin cliente o a nombre de la cuenta de un administrador.
 - `POST /mis-productos/v1/pedidos/{pedidoId}/datos-cliente`: si el pedido ya tiene ese cliente sin registro, **no se crea otro**: se le completan el correo y/o el teléfono (se exige al menos uno) y su nombre se respeta tal cual. Si no tenía cliente, se crea como antes (nombre obligatorio). El correo se valida (formato) y el teléfono debe tener 10 dígitos. Un cliente registrado con cuenta propia no se toca.
+
+## Dividir un pedido: pasar un artículo a otro cliente (2026-11-16)
+**Request:** `POST /mis-productos/v1/pedidos/{pedidoId}/articulos/{detalleId}/pasar-a-cliente` (solo ADMIN)
+```json
+{ "cantidad": 1, "clienteId": 12 }          // cliente registrado
+{ "cantidad": 2, "clienteSinRegistroId": 7 } // cliente sin registro (crearlo antes)
+```
+Se manda **uno solo** de los dos ids.
+**Response 200:** `{ "data": { "pedidoNuevoId": 345 }, "mensaje": "Se creó el pedido #345" }` → volver a cargar el detalle del pedido original.
+**Qué hace:** pasa `cantidad` piezas de esa línea a un pedido **nuevo** del otro cliente (mismo tipo: Apartado o Ir pagando, sin abonos, mismo precio por pieza; si el precio se puso a mano, viaja). Si se pasan todas las piezas, la línea sale del original. El stock no cambia. Ambos pedidos se recalculan.
+**Reglas (el back rechaza con 400/409 y `mensaje`):**
+- Solo administrador; solo pedidos Apartado o Ir pagando sin liquidar (no Pagado, Entregado ni cancelado).
+- No combos; no líneas con precio de campaña; no pedidos unidos en grupo.
+- No dejar el pedido original sin artículos; el cliente destino no puede ser el mismo del pedido.
+- Los abonos se quedan en el pedido original; si por el movimiento el original quedaría con más dinero pagado que su nuevo total, se rechaza (el mensaje dice cuánto sobraría).
+- 404 si el pedido o la línea no existen o la línea no es de ese pedido; 400 para el resto de las reglas; el precio de grupo (o a mano) viaja como precio de antes y se vuelve a decidir con las piezas del pedido nuevo.
