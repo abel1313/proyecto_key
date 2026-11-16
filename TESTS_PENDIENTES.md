@@ -706,3 +706,11 @@ Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) 
 - **Correos que no llegan:** falta el resultado de `kubectl logs … | grep "Correo enviado|Error enviando correo"`; en QA el host SMTP es un nombre temporal (`hapi.hosting-mexico.net`): confirmar si ya se puede volver a `mail.novedades-jade.com.mx`. Todo fallo de envío solo queda en el log (el reenvío del QR desde el pedido ya avisa si falla).
 **Producción** (nada se sube sin orden expresa): el arreglo del NaN en el ticket (fecha) probablemente también está en producción; «Venta directa sin verificación de correo con campaña» y «cambio de precio», «enviar QR desde el pedido» y «datos del cliente» están solo en dev y qa.
 **Documentación:** sincronizar `CAMBIOS_FRONT.md` con `/home/user/documentos_front_back_nodevedaades_jade` (regla del `CLAUDE.md`); quitar marcas de versión temporales si siguen en dev/qa.
+
+## Datos del cliente / quien recibe en el pedido + errores entendibles (2026-11-16)
+**Debe comprobar (back, sin tests automáticos por regla del proyecto):**
+- `migration_pedido_datos_visibles.sql` corre dos veces sin error y deja la columna `pedidos.datos_visibles`; con ella, lista de pedidos y detalle cargan igual que antes.
+- `PUT /v1/pedidos/{id}/datos-cliente`: corrige un cliente sin registro (todos los campos); rechaza cliente con cuenta, pedido cancelado, pedido sin cliente y datos inválidos; solo ADMIN (401/403 con otro rol).
+- `PUT /v1/pedidos/{id}/datos-visibles`: acepta CLIENTE/RECEPTOR; rechaza RECEPTOR sin nombre de quien recibe y CLIENTE sin cliente; `PUT /entrega` con nombre vacío rechazado si está en RECEPTOR.
+- Errores: repetir un código de barras (Nuevo producto y Agregar artículo) → mensaje «El código de barras «X» ya está registrado…», no el texto de MySQL; el log del servidor sí trae el detalle técnico; mensajes que ya eran claros salen iguales.
+**Pendiente para después (anotado):** que el permiso de editar estos datos sea configurable por rol (hoy solo ADMIN, fijo en `SecurityConfig`).

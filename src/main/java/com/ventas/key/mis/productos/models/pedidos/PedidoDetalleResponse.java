@@ -23,6 +23,28 @@ public class PedidoDetalleResponse {
     private Boolean tieneCodigoDeCampana;
     /** Solo para el administrador y solo en true: el pedido no tiene los datos de un cliente (se le pueden agregar desde el detalle). */
     private Boolean sinDatosDelCliente;
+    /** Solo para el administrador, y solo si el cliente del pedido es un «cliente sin registro»: sus datos completos para corregirlos. */
+    private DatosClienteEditable clienteSinRegistro;
+    /** Solo administrador: el pedido tiene un cliente real con nombre (no la cuenta de quien cobra ni solo el nombre de quien recibe). */
+    private Boolean tieneDatosDeCliente;
+    /** Solo administrador: nombre del titular (cliente sin registro o cuenta), sin caer al de quien recibe. */
+    private String clienteTitular;
+    /** Solo administrador: el cliente sin registro de este pedido se puede corregir desde el detalle. */
+    private Boolean puedeEditarCliente;
+
+    @Data
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class DatosClienteEditable {
+        private Integer id;
+        private String nombre;
+        private String segundoNombre;
+        private String apellido;
+        private String apellidoMaterno;
+        private String fechaNacimiento;
+        private String sexo;
+        private String correo;
+        private String telefono;
+    }
     /** Ya se lo llevo (aparte del pago, dominio entrega 2026-10-06). */
     private Boolean entregado;
 
@@ -60,6 +82,8 @@ public class PedidoDetalleResponse {
     private LocalDate fechaCancelacion;
 
     private String nombreReceptor;
+    /** CLIENTE o RECEPTOR: cual dato se muestra del pedido (null = los dos). */
+    private String datosVisibles;
     private String direccionEntrega;
     private Double latitud;
     private Double longitud;

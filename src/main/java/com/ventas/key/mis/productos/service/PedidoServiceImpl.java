@@ -920,6 +920,25 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (AuthenticationUtils.isAdminContext() && !"cancelado".equalsIgnoreCase(pedido.getEstadoPedido()) && PedidoDatosClienteService.sinDatosDelCliente(pedido)) {
             resp.setSinDatosDelCliente(true);
         }
+        if (AuthenticationUtils.isAdminContext()) {
+            resp.setTieneDatosDeCliente(PedidoDatosClienteService.tieneDatosDeCliente(pedido));
+            resp.setClienteTitular(com.ventas.key.mis.productos.Utils.CompradorDelPedido.nombreDelTitular(pedido));
+            resp.setPuedeEditarCliente(PedidoDatosClienteService.puedeEditarCliente(pedido));
+        }
+        if (AuthenticationUtils.isAdminContext() && pedido.getClienteSinRegistro() != null) {
+            var csr = pedido.getClienteSinRegistro();
+            var datos = new PedidoDetalleResponse.DatosClienteEditable();
+            datos.setId(csr.getId());
+            datos.setNombre(csr.getNombrePersona());
+            datos.setSegundoNombre(csr.getSegundoNombre());
+            datos.setApellido(csr.getApeidoPaterno());
+            datos.setApellidoMaterno(csr.getApeidoMaterno());
+            datos.setFechaNacimiento(csr.getFechaNacimiento() == null ? null : csr.getFechaNacimiento().toString());
+            datos.setSexo(csr.getSexo());
+            datos.setCorreo(csr.getCorreoElectronico());
+            datos.setTelefono(csr.getNumeroTelefonico());
+            resp.setClienteSinRegistro(datos);
+        }
         resp.setEntregado(pedido.isEntregado());
         resp.setFechaPedido(pedido.getFechaPedido());
         resp.setFechaHoraRegistro(pedido.getFechaHoraRegistro() != null
@@ -934,6 +953,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         resp.setMotivoCancelacion(pedido.getMotivoCancelacion());
         resp.setFechaCancelacion(pedido.getFechaCancelacion());
         resp.setNombreReceptor(pedido.getNombreReceptor());
+        resp.setDatosVisibles(pedido.getDatosVisibles());
         resp.setDireccionEntrega(pedido.getDireccionEntrega());
         resp.setLatitud(pedido.getLatitud());
         resp.setLongitud(pedido.getLongitud());
@@ -1319,6 +1339,10 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         }
 
         if (requestG.getNombreReceptor() != null) {
+            if ("RECEPTOR".equals(pedido.getDatosVisibles()) && requestG.getNombreReceptor().isBlank()) {
+                throw new RuntimeException("No se puede dejar vacío el nombre de quien recibe: es el dato que se muestra en este pedido. "
+                        + "Pídele al administrador que lo cambie.");
+            }
             pedido.setNombreReceptor(requestG.getNombreReceptor());
         }
         if (requestG.getDireccionEntrega() != null) {

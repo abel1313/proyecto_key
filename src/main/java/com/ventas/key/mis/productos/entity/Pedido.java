@@ -67,6 +67,10 @@ public class Pedido extends BaseId{
     @Column(name = "motivo_cancelacion", length = 150)
     private String motivoCancelacion;
 
+    /** Cual de los dos datos se muestra del pedido: CLIENTE o RECEPTOR (quien recibe). Null = como siempre, se muestran los dos. */
+    @Column(name = "datos_visibles", length = 10)
+    private String datosVisibles;
+
     @Column(name = "nombre_receptor", length = 150)
     private String nombreReceptor;
 
