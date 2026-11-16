@@ -6,7 +6,6 @@ import com.ventas.key.hexagonal.pedidoarticulo.dominio.excepcion.PedidoCerradoEx
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.modelo.ArticuloDePedido;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.modelo.PedidoEditable;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.entrada.DividirPedidoCasoUso;
-import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.CobroConTarjetaPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.DivisionDePedidoPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PagoTrasEdicionPort;
 import com.ventas.key.hexagonal.pedidoarticulo.dominio.puerto.salida.PedidoArticuloPort;
@@ -29,7 +28,6 @@ import java.util.List;
 public class DividirPedidoService implements DividirPedidoCasoUso {
 
     private final PedidoArticuloPort pedidos;
-    private final CobroConTarjetaPort cobrosConTarjeta;
     private final PagoTrasEdicionPort pagos;
     private final DivisionDePedidoPort division;
 
@@ -49,9 +47,6 @@ public class DividirPedidoService implements DividirPedidoCasoUso {
         if (!origen.admiteCambioDePrecio()) {
             throw new EdicionPedidoException("Solo se puede pasar un artículo a otro cliente en un pedido en Apartado o Ir pagando que todavía no está pagado. "
                     + "Este pedido ya está en estado " + origen.estado());
-        }
-        if (cobrosConTarjeta.tieneCobroConTarjeta(pedidoId)) {
-            throw new EdicionPedidoException("El pedido " + pedidoId + " tiene un cobro con tarjeta en proceso o sin devolver por completo: no se puede dividir todavía");
         }
         if (division.estaEnGrupoActivo(pedidoId)) {
             throw new EdicionPedidoException("Este pedido está unido a otros: sepáralo del grupo antes de pasar un artículo a otro cliente");
