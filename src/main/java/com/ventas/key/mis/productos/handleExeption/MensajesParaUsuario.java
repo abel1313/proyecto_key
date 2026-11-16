@@ -31,7 +31,7 @@ public final class MensajesParaUsuario {
 
     /** Frases que solo aparecen en errores de la base o de Java (no palabras sueltas, para no tocar mensajes escritos para personas). */
     private static final String[] RASTROS_TECNICOS = {
-            "could not execute", "could not commit", "could not extract", "jdbc", "hibernate", "sqlstate", "constraint fails", "constraintviolation",
+            "could not execute", "could not commit", "could not extract", "jdbc", "hibernate", "sqlstate", "constraint fails", "check constraint", "constraintviolation",
             "org.springframework", "org.hibernate", "java.lang.", "java.sql.", "java.util.", "com.mysql", "jakarta.", "nullpointer",
             "duplicate entry", "data too long", "cannot be null", "doesn't have a default value", "foreign key constraint", "deadlock found",
             "lock wait timeout", "nested exception", "sql [", "stacktrace", "cannot invoke", "for input string", "no value present",
@@ -81,7 +81,7 @@ public final class MensajesParaUsuario {
                 }
             }
             // Un id interno (123) o una clave compuesta (12-34) no le dicen nada a quien usa la pantalla: se omite el valor.
-            boolean mostrarValor = !valor.matches("[\\d\\-]+") || valor.length() > 6;
+            boolean mostrarValor = !valor.matches("\\d+(-\\d+)*") || valor.length() > 6;
             return (que == null ? "Ese dato" : que) + (mostrarValor ? " «" + valor + "»" : "") + " ya está registrado. Escribe uno diferente.";
         }
         String bajo = m.toLowerCase(Locale.ROOT);

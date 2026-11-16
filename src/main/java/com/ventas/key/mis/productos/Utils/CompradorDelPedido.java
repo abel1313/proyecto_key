@@ -26,6 +26,10 @@ public final class CompradorDelPedido {
 
     /** Nombre para mostrar: el de la venta, luego el receptor, luego la cuenta; null si no hay ninguno. */
     public static String nombre(Pedido pedido) {
+        // El administrador eligio mostrar los datos del cliente (no los de quien recibe): no se cae al nombre del receptor.
+        if ("CLIENTE".equals(pedido.getDatosVisibles())) {
+            return nombreDelTitular(pedido);
+        }
         ClienteSinRegistro sinRegistro = pedido.getClienteSinRegistro();
         if (sinRegistro != null && hayTexto(sinRegistro.getNombrePersona())) {
             return sinRegistro.getNombrePersona();

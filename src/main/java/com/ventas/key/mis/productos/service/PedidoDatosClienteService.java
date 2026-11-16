@@ -122,9 +122,9 @@ public class PedidoDatosClienteService {
         // Si ya tiene nombre se conserva (lo que se escribe aqui no lo pisa); solo se usa el escrito cuando el cliente no tenia nombre.
         String nombre = vacio(csr.getNombrePersona()) ? (req.getNombre() == null ? "" : req.getNombre().trim()) : csr.getNombrePersona();
         String apellido = vacio(csr.getApeidoPaterno()) ? (req.getApellido() == null ? "" : req.getApellido().trim()) : csr.getApeidoPaterno();
-        // Solo se validan el correo y el telefono nuevos: el nombre que el cliente ya tenia se respeta tal cual (aunque no cumpla las 3 letras de un alta nueva).
+        // Solo se validan lo nuevo (correo, telefono y los nombres opcionales que lleguen): el nombre que el cliente ya tenia se respeta tal cual (aunque no cumpla las 3 letras de un alta nueva).
         ClienteSinRegistroDto dto = ClienteSinRegistroDto.builder()
-                .nombre_persona("Cliente").segundo_nombre("").apeido_Paterno("").apeido_Materno("")
+                .nombre_persona("Cliente").segundo_nombre(limpio(req.getSegundoNombre())).apeido_Paterno(vacio(csr.getApeidoPaterno()) ? apellido : "").apeido_Materno(limpio(req.getApellidoMaterno()))
                 .fecha_Nacimiento("").sexo("").correo_Electronico(correo).numero_Telefonico(telefono).build();
         try {
             ClienteSinRegistroImpl.validar(dto);

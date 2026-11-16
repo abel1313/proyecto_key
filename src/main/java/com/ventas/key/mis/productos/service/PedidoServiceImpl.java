@@ -951,7 +951,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
             resp.setClienteTitular(com.ventas.key.mis.productos.Utils.CompradorDelPedido.nombreDelTitular(pedido));
             resp.setPuedeEditarCliente(PedidoDatosClienteService.puedeEditarCliente(pedido));
         }
-        if (AuthenticationUtils.isAdminContext() && pedido.getClienteSinRegistro() != null) {
+        if (AuthenticationUtils.isAdminContext() && PedidoDatosClienteService.puedeEditarCliente(pedido)) {
             var csr = pedido.getClienteSinRegistro();
             var datos = new PedidoDetalleResponse.DatosClienteEditable();
             datos.setId(csr.getId());
@@ -1333,7 +1333,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
     @Transactional
     @Override
     public PedidoDetalleResponse editarDatosEntrega(int id, EditarEntregaPedidoRequest requestG) {
-        Pedido pedido = iPedidoRepository.findById(id)
+        Pedido pedido = iPedidoRepository.findByIdWithLock(id)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
         // El cliente solo puede editar la entrega de SU propio pedido; ADMIN puede cualquiera.
@@ -1368,7 +1368,7 @@ public class PedidoServiceImpl extends CrudAbstractServiceImpl<
         if (requestG.getNombreReceptor() != null) {
             if ("RECEPTOR".equals(pedido.getDatosVisibles()) && requestG.getNombreReceptor().isBlank()) {
                 throw new RuntimeException("No se puede dejar vacío el nombre de quien recibe: es el dato que se muestra en este pedido. "
-                        + "Pídele al administrador que lo cambie.");
+                        + "Primero elige mostrar los datos del cliente.");
             }
             pedido.setNombreReceptor(requestG.getNombreReceptor());
         }
