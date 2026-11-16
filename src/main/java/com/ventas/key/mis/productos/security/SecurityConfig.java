@@ -471,6 +471,8 @@ public class SecurityConfig {
                                 .hasAnyAuthority(accion("pedidos/mis-pedidos", "agregar-articulo"))
                         // Agregar los datos del cliente a un pedido que no los tiene: solo el administrador.
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/datos-cliente").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/*/datos-cliente").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT,    "/v1/pedidos/*/datos-visibles").hasRole("ADMIN")
                         // Pasar un articulo de un pedido a otro cliente (pedido nuevo): decision de dinero, solo el administrador.
                         .requestMatchers(HttpMethod.POST,   "/v1/pedidos/*/articulos/*/pasar-a-cliente").hasRole("ADMIN")
                         // Cambiar SOLO el precio de una linea del pedido: decision de dinero, solo el administrador.

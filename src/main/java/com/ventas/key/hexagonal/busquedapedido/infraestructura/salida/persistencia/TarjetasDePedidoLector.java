@@ -36,9 +36,9 @@ public class TarjetasDePedidoLector {
               JSON_OBJECT(
                 'cliente', JSON_OBJECT(
                   'id',                COALESCE(csr.id, c.id),
-                  'nombreCliente',     COALESCE(csr.nombre_persona, NULLIF(TRIM(p.nombre_receptor), ''), c.nombre_persona),
-                  'correoElectronico', COALESCE(csr.correo_electronico, c.correo_electronico),
-                  'numeroTelefonico',  COALESCE(csr.numero_telefonico, c.numero_telefonico),
+                  'nombreCliente',     IF(p.datos_visibles = 'CLIENTE', COALESCE(csr.nombre_persona, c.nombre_persona), COALESCE(csr.nombre_persona, NULLIF(TRIM(p.nombre_receptor), ''), c.nombre_persona)),
+                  'correoElectronico', IF(csr.id IS NOT NULL, csr.correo_electronico, c.correo_electronico),
+                  'numeroTelefonico',  IF(csr.id IS NOT NULL, csr.numero_telefonico, c.numero_telefonico),
                   'sinRegistro',       csr.id IS NOT NULL
                 ),
                 'pedido', JSON_OBJECT(
@@ -50,6 +50,7 @@ public class TarjetasDePedidoLector {
 
                   'entregado', IF(p.entregado = 1, CAST('true' AS JSON), CAST('false' AS JSON)),
                   'nombreReceptor', p.nombre_receptor,
+                  'datosVisibles', p.datos_visibles,
                   'lugarEntregaId', le.id,
                   'lugarEntregaNombre', le.nombre,
                   'urlFacebook', p.url_facebook,

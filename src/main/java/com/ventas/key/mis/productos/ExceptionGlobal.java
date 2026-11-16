@@ -11,6 +11,8 @@ import com.ventas.key.mis.productos.handleExeption.GenericException;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
+import com.ventas.key.mis.productos.handleExeption.MensajesParaUsuario;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.TransactionSystemException;
@@ -116,6 +118,15 @@ public class ExceptionGlobal {
     // en vez de quedarse en el log (encontrado 2026-09-04, hotfix urgente en prod).
     // DataAccessException cubre el resto de fallos de Spring Data/JPA que no pasan por commit
     // (ej. una query que falla directo).
+    // Dato repetido (codigo de barras, correo...), campo obligatorio vacio, texto muy largo o registro en uso: se traduce a un texto claro; el detalle va al log.
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ResponseGeneric<Void>> integridadDeDatos(DataIntegrityViolationException ex) {
+        String tecnico = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+        log.warn("Restriccion de la base: {}", tecnico);
+        boolean repetido = tecnico != null && tecnico.contains("Duplicate entry");
+        return build(repetido ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST, MensajesParaUsuario.paraUsuario(tecnico == null ? "constraint" : tecnico));
+    }
+
     @ExceptionHandler({TransactionSystemException.class, DataAccessException.class})
     public ResponseEntity<ResponseGeneric<Void>> errorBaseDatos(Exception ex) {
         log.error("Error de base de datos / transaccion no controlado", ex);
@@ -139,7 +150,7 @@ public class ExceptionGlobal {
     }
 
     private ResponseEntity<ResponseGeneric<Void>> build(HttpStatus status, String mensaje) {
-        ResponseGeneric<Void> body = new ResponseGeneric<>(mensaje, status.value(), null, null);
+        ResponseGeneric<Void> body = new ResponseGeneric<>(MensajesParaUsuario.paraUsuario(mensaje), status.value(), null, null);
         return ResponseEntity.status(status).body(body);
     }
 }
