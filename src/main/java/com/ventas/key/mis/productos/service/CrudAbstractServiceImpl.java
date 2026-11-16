@@ -138,7 +138,8 @@ public abstract class CrudAbstractServiceImpl<
             String estadoSql = sqlEx.getSQLState(); // ← también puedes usar esto
 
             if (codigoSql == 1062) {
-                throw new GenericException(codigoSql,"El codigo postal ya existe, ingrese uno diferente");
+                String sql = sqlEx.getSQLException() != null ? sqlEx.getSQLException().getMessage() : sqlEx.getMessage();
+                throw new GenericException(codigoSql, com.ventas.key.mis.productos.handleExeption.MensajesParaUsuario.traducir(sql));
             }
             // Antes cualquier otra restriccion (columna obligatoria vacia, llave foranea...) salia
             // con el texto del codigo postal y no habia forma de saber que fallo.

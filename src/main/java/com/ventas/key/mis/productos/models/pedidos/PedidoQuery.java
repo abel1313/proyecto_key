@@ -18,6 +18,8 @@ public class PedidoQuery {
     private String tipoPedido;
     private Double totalPagado;
     private String nombreReceptor;
+    /** CLIENTE o RECEPTOR: cual dato se muestra del pedido (null = los dos). */
+    private String datosVisibles;
     private Integer lugarEntregaId;
     private String lugarEntregaNombre;
     private String urlFacebook;

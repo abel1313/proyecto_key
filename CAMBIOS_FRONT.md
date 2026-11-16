@@ -23951,3 +23951,25 @@ Se manda **uno solo** de los dos ids.
 - No dejar el pedido original sin artículos; el cliente destino no puede ser el mismo del pedido.
 - Los abonos se quedan en el pedido original; si por el movimiento el original quedaría con más dinero pagado que su nuevo total, se rechaza (el mensaje dice cuánto sobraría).
 - 404 si el pedido o la línea no existen o la línea no es de ese pedido; 400 para el resto de las reglas; el precio de grupo (o a mano) viaja como precio de antes y se vuelve a decidir con las piezas del pedido nuevo.
+
+## Datos del cliente y de quien recibe en el pedido: editar y elegir cuál se muestra (2026-11-16)
+**Antes:** «Agregar datos del cliente» (detalle del pedido) solo pedía nombre, apellido, correo y teléfono; los datos del cliente y los de quien recibe, una vez capturados, no se podían corregir desde el detalle.
+**Ahora (todo solo ADMIN; que el rol sea configurable queda anotado para más adelante):**
+- `POST /mis-productos/v1/pedidos/{pedidoId}/datos-cliente` — igual que antes, pero el body acepta los mismos campos del formulario «Cliente sin registro» de Venta directa: `nombre`, `segundoNombre`, `apellido`, `apellidoMaterno`, `fechaNacimiento` (yyyy-MM-dd), `sexo`, `correo`, `telefono`. Solo `nombre` es obligatorio.
+- `PUT /mis-productos/v1/pedidos/{pedidoId}/datos-cliente` — **nuevo**: corrige los datos del cliente del pedido cuando es un «cliente sin registro» (el que se captura en Venta directa o desde el pedido). Mismo body y mismas validaciones (nombre ≥ 3 letras; segundo nombre/apellidos, si vienen, ≥ 3 letras; correo con formato; teléfono de 10 dígitos). Si cambia el correo, queda sin verificar. **400** con `mensaje` si el pedido está cancelado, si el cliente tiene cuenta propia («sus datos los cambia él desde su perfil») o si el pedido aún no tiene cliente.
+- `PUT /mis-productos/v1/pedidos/{pedidoId}/datos-visibles` body `{ "mostrar": "CLIENTE" | "RECEPTOR" }` — **nuevo**: elige cuál dato se muestra del pedido. Siempre tiene que haber uno: se rechaza (400) elegir `RECEPTOR` si no hay nombre de quien recibe, o `CLIENTE` si no hay datos de cliente. Mientras esté en `RECEPTOR`, `PUT /v1/pedidos/{id}/entrega` rechaza dejar vacío `nombreReceptor`.
+- Quien recibe se edita con el `PUT /mis-productos/v1/pedidos/{id}/entrega` de siempre (`{ "nombreReceptor": "..." }`); el front lo usa con el modal «Editar datos de quien recibe». El resto de la dirección sigue en el botón «Dirección» de la card.
+**Qué nuevo llega al front:**
+- `GET /v1/pedidos/{id}/detalle` (campo opcional, solo admin y solo si el cliente es «sin registro»): `clienteSinRegistro: { id, nombre, segundoNombre, apellido, apellidoMaterno, fechaNacimiento, sexo, correo, telefono }`.
+- `datosVisibles` (`"CLIENTE"` | `"RECEPTOR"` | ausente) en el detalle y en `pedido` de cada card de la lista de pedidos. **Ausente = como siempre: se muestran los dos.** `CLIENTE` → la card oculta «Recibe»; `RECEPTOR` → la card oculta Cliente, correo y teléfono.
+- **Requiere** `migration_pedido_datos_visibles.sql` (columna `pedidos.datos_visibles`) **antes** de desplegar: sin ella las consultas de pedidos fallan.
+
+## Mensajes de error entendibles para el usuario (2026-11-16)
+**Antes:** algunos errores de la base llegaban tal cual al front (por ejemplo `could not execute statement … Duplicate entry '7501…' for key 'codigo_barra.UK_…'` al repetir un código de barras), y el usuario no entendía qué pasó.
+**Ahora:** todo `mensaje` de una respuesta de error (status ≥ 400) pasa por un traductor del back (`MensajesParaUsuario` + `MensajesDeErrorAdvice`); el texto técnico solo queda en el log. Ejemplos del `mensaje` que recibe el front:
+- Dato repetido → `El código de barras «7501234» ya está registrado. Escribe uno diferente.` (409; también para cliente, usuario/correo, categoría, código postal…)
+- Texto muy largo → `Uno de los textos es demasiado largo (nombre receptor). Acórtalo e intenta de nuevo.`
+- Campo obligatorio vacío → `Falta un dato obligatorio (…). Complétalo e intenta de nuevo.`
+- Registro en uso al borrar → `No se puede eliminar porque ya se usa en otros registros (por ejemplo en pedidos o ventas).`
+- Cualquier otro texto técnico → `No se pudo guardar el cambio. Revisa los datos e intenta de nuevo; si sigue igual, avisa al administrador.`
+Los mensajes que ya estaban escritos para personas no cambian. El front sigue leyendo `mensaje` como siempre; no hay cambio de contrato.

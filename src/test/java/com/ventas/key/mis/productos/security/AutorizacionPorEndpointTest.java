@@ -88,6 +88,8 @@ class AutorizacionPorEndpointTest {
                 new Ruta(HttpMethod.POST, "/v1/campanas/pedidos/1/enviar-codigo"),
                 new Ruta(HttpMethod.PUT, "/v1/pedidos/1/articulos/1/precio"),
                 new Ruta(HttpMethod.POST, "/v1/pedidos/1/datos-cliente"),
+                new Ruta(HttpMethod.PUT, "/v1/pedidos/1/datos-cliente"),
+                new Ruta(HttpMethod.PUT, "/v1/pedidos/1/datos-visibles"),
                 new Ruta(HttpMethod.POST, "/v1/pedidos/1/articulos/1/pasar-a-cliente"),
                 new Ruta(HttpMethod.POST, "/v1/calculos-precio"),
                 new Ruta(HttpMethod.GET, "/v1/calculos-precio"),

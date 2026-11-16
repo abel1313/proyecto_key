@@ -72,6 +72,16 @@ public class ClienteSinRegistroImpl extends CrudAbstractServiceImpl<ClienteSinRe
         validarOpcional(dto.getSegundo_nombre(), "El segundo nombre");
         validarOpcional(dto.getApeido_Paterno(), "El apellido paterno");
         validarOpcional(dto.getApeido_Materno(), "El apellido materno");
+        String fecha = dto.getFecha_Nacimiento();
+        if (fecha != null && !fecha.isBlank()) {
+            try {
+                if (LocalDate.parse(fecha.trim()).isAfter(LocalDate.now())) {
+                    throw new RuntimeException("La fecha de nacimiento no puede ser futura");
+                }
+            } catch (java.time.format.DateTimeParseException e) {
+                throw new RuntimeException("La fecha de nacimiento no es válida (usa el formato año-mes-día)");
+            }
+        }
         String correo = dto.getCorreo_Electronico();
         if (correo != null && !correo.isBlank() && !correo.trim().matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
             throw new RuntimeException("El correo no es valido");
