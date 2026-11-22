@@ -38,4 +38,16 @@ public interface IPublicacionSocialRepository extends BaseRepository<Publicacion
 
     @Query("SELECT p FROM PublicacionSocial p WHERE p.id = :id AND p.plataforma = 'whatsapp'")
     Optional<PublicacionSocial> buscarWhatsapp(@Param("id") Integer id);
+
+    // Lo mas reciente primero, para la pantalla de publicaciones de WhatsApp.
+    @Query("SELECT p FROM PublicacionSocial p WHERE p.plataforma = 'whatsapp' ORDER BY p.id DESC")
+    List<PublicacionSocial> listarWhatsapp(Pageable pageable);
+
+    @Query("SELECT p FROM PublicacionSocial p WHERE p.plataforma = 'whatsapp' AND p.codigoRef = :codigo")
+    Optional<PublicacionSocial> buscarWhatsappPorCodigo(@Param("codigo") String codigo);
+
+    // Las ya publicadas en ese grupo desde esa fecha (sin distinguir mayusculas en el nombre del grupo), la mas reciente primero.
+    @Query("SELECT p FROM PublicacionSocial p WHERE p.plataforma = 'whatsapp' AND p.estado = 'PUBLICADA' "
+            + "AND LOWER(p.grupoWhatsapp) = LOWER(:grupo) AND p.fechaPublicacion >= :desde ORDER BY p.fechaPublicacion DESC, p.id DESC")
+    List<PublicacionSocial> publicadasWhatsappDelGrupoDesde(@Param("grupo") String grupo, @Param("desde") LocalDateTime desde);
 }

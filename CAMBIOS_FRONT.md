@@ -23987,3 +23987,54 @@ Lo consume el **bot** (repo `whatsapp_bot`, Python), no el front Angular. Todas 
 Estados: `PENDIENTE → EN_PROCESO → PUBLICADA | ERROR`, y `CANCELADA`. No se usa `PROGRAMADA` a propósito: ese estado lo dispara el job de Facebook/Instagram/TikTok.
 **Migración (la corre el dueño a mano, antes de desplegar):** `migration_whatsapp_publicaciones.sql` agrega a `publicacion_social` las columnas `grupo_whatsapp`, `codigo_ref` (único) y `modo_venta`.
 **Falta (siguientes pasos del plan):** crear/programar/cancelar publicaciones desde el panel (endpoints de admin + pantalla), el chat «NovedadesJade» con su prompt, `POST /v1/bot/whatsapp/mensaje` y `/venta`.
+
+
+## WhatsApp: endpoints del panel para publicar en grupos (2026-11-22) — rama `feature/whatsapp-mensaje`, sin subir
+Lo consume la **pantalla nueva «Publicaciones de WhatsApp»** (front Angular, ruta `whatsapp/publicaciones`). Todas las rutas son `/mis-productos/v1/whatsapp/publicaciones...`, **solo ADMIN** (JWT). El bot usa otras rutas (`/v1/bot/publicaciones`, sección de arriba).
+Respuesta: `ResponseGeneric` de siempre (`data` con una publicación o `lista`), `code` = código HTTP y `mensaje` en palabras del dueño.
+
+| Método y ruta | Qué hace | Cuerpo |
+|---|---|---|
+| `GET /v1/whatsapp/publicaciones` | Las 200 más recientes, la más nueva primero. Sin ninguna: `lista: []` y `code: 200` (no es error) | — |
+| `POST /v1/whatsapp/publicaciones` | Crea (o programa) una publicación | `{ "varianteId": 12, "grupo": "Grupo Familia", "texto": "opcional", "modoVenta": "PRIVADO", "programadaPara": "2026-11-25T18:00:00" }` |
+| `POST /v1/whatsapp/publicaciones/{id}/cancelar` | Cancela si está `PENDIENTE` o `ERROR` | — |
+| `POST /v1/whatsapp/publicaciones/{id}/reintentar` | De `ERROR` vuelve a `PENDIENTE` con los intentos en cero | — |
+
+**Al crear:**
+- `varianteId` y `grupo` son obligatorios. `grupo` es el **nombre exacto** del grupo en WhatsApp (el bot lo busca por nombre); máx. 200 letras.
+- `texto` vacío → el back lo arma con plantilla (**sin IA**): `*Novedades Jade · J42*` / nombre / `$precio MXN` / `Responde a este mensaje o escribe J42 para apartarlo`. Si el admin escribe su propio texto (máx. 1000 letras), el back le **pone igual la cabecera con el código y la invitación**: el front **no** debe escribirlas, y puede mostrar una vista previa con ese formato.
+- `modoVenta`: `GRUPO` o `PRIVADO` (vacío = `PRIVADO`). `programadaPara` vacío = sale en cuanto el bot consulte (cada ~60 s); si trae hora, sale cuando llega.
+- La foto es la **principal del artículo**; si no tiene, se publica solo el texto (`tieneImagen: false`).
+- El artículo debe existir, estar habilitado y tener existencias.
+
+**Qué trae cada publicación (`data` / elementos de `lista`):** `id`, `varianteId`, `grupo`, `texto` (ya con el código), `codigoRef` (`J42`), `modoVenta`, `estado`, `programadaPara`, `fechaPublicacion`, `intentos`, `ultimoError`, `tieneImagen`.
+**Estados:** `PENDIENTE` (esperando) → `EN_PROCESO` (el bot la recogió) → `PUBLICADA` o `ERROR` (al 3.er intento fallido), y `CANCELADA`. Botones: **Cancelar** solo si `PENDIENTE` o `ERROR`; **Reintentar** solo si `ERROR` (mostrar `ultimoError`).
+
+| Código | Cuándo |
+|---|---|
+| 400 | Falta artículo o grupo; texto demasiado largo; artículo no existe, dado de baja o agotado |
+| 404 | `cancelar`/`reintentar` de una publicación que no existe |
+| 409 | `cancelar`/`reintentar` desde un estado que no lo permite (por ejemplo cancelar una `PUBLICADA`) |
+| 401/403 | Sin sesión / sin rol ADMIN |
+
+**Migraciones (las corre el dueño a mano, en este orden, antes de desplegar):** `migration_whatsapp_publicaciones.sql` (columnas) y `migration_whatsapp_pantalla.sql` (da de alta la pantalla en el menú solo para ROLE_ADMIN). **Después de correrla: volver a entrar** (las pantallas viajan en el JWT).
+**Para el front:** falta la pantalla (ruta con `PantallaGuard`, link en el navbar, alta en Menús y submenús: ver `COMO_DAR_ALTA_PANTALLA_Y_PERMISOS.md`). El gate del back ya está en `SecurityConfig` (`/v1/whatsapp/**` → ADMIN).
+**Pendiente (siguiente fase):** el endpoint con el que el bot **contesta** sobre lo publicado (`POST /v1/bot/whatsapp/mensaje`) y la venta.
+
+
+## WhatsApp: endpoint con el que el bot CONTESTA sobre lo publicado (2026-11-22) — rama `feature/whatsapp-mensaje`, sin subir
+Lo consume el **bot** (repo `whatsapp_bot`), no el front Angular. `POST /mis-productos/v1/bot/whatsapp/mensaje`, sin sesión, con el encabezado **`X-Bot-Key`** (401 sin llave o con otra; 503 si el servidor no tiene `BOT_API_KEY`).
+
+**Entrada** (JSON): `{ "canal": "GRUPO|PRIVADO", "chat": "Grupo Familia", "remitente": "Ana", "texto": "¿cuánto cuesta?", "ref": "J42", "citaTexto": "*Novedades Jade · J42* …", "mencion": false }`
+`chat` y `texto` obligatorios; `ref`, `citaTexto` y `mencion` opcionales (el back también busca el código `J42` en `texto` y en `citaTexto`). `texto` y `citaTexto` se recortan a 1000 letras. `canal` distinto de GRUPO/PRIVADO → 400.
+**Salida** (siempre 200): `{ "accion": "RESPONDER|IGNORAR|ESCALADO|OFRECER_PRIVADO", "respuesta": "...", "publicacionId": 42, "modoVenta": "PRIVADO" }`. Con `IGNORAR` el bot **no escribe nada** (`respuesta` viene `null`). Con las demás, manda `respuesta` tal cual.
+
+**Reglas (decididas por el back, el bot no adivina):**
+- **En un grupo solo se contesta lo de una publicación del bot.** Hay código (`J42`, en el texto o en la cita) → debe ser una publicación `PUBLICADA` **en ese mismo grupo** (si no, `IGNORAR`). Sin código: solo si `mencion` es true y hay **una** publicación publicada en ese grupo en las últimas 24 h → contesta empezando con «Sobre <artículo> (J42): …»; si hay **varias** → pregunta «¿De cuál me hablas? Escríbeme su código» (`RESPONDER`); si no hay ninguna → `IGNORAR`. Charla del grupo sin código ni mención → `IGNORAR`.
+- **Plantillas sin IA** (cero tokens) para precio («X cuesta $450 MXN 💖»), «¿hay?» («Sí hay disponible ✅» / «Por ahora está agotado»; nunca la cantidad exacta), saludo y gracias. Una pregunta con calificadores («¿hay **en** negro?», «otra talla») o larga va al chatbot (solo con los datos de ese producto, máx. ~150 tokens).
+- **Pregunta que el producto no cubre** (o la IA falla/tarda, o su respuesta no pasa el filtro de seguridad) → `ESCALADO` con «En un momento te atendemos 💖»: avisa al admin por correo (`chat.admin-email`) y el bot **se aparta 30 minutos** de esa persona en esa publicación (`redes.bot.pausa-minutos`; en memoria, vale con un solo pod).
+- **Quiere comprar** («lo quiero», «me lo apartas»…): avisa al admin y contesta según `modoVenta`: `PRIVADO` desde un grupo → `OFRECER_PRIVADO` con «Escríbeme por privado…» y el enlace `wa.me` del negocio con `?text=Quiero+J42`; `GRUPO` → `ESCALADO` preguntando cuántas piezas (los datos de entrega se piden por privado). **El pedido todavía no se genera aquí** (`/venta`, siguiente fase).
+- **Chat privado sin código:** contesta con el catálogo (como el chat de la tienda) y escala igual.
+- Control de abuso por persona (`whatsapp:<chat>:<remitente>`), no por IP: bloqueos y 20 mensajes/hora de `ChatbotBlockService`.
+**Dónde vive:** `hexagonal/whatsapp` (`ResponderMensajeWhatsappService`, `RespuestasSinIa`, `ReferenciaDePublicacion`), `ChatbotWhatsappService` (prompt «NovedadesJade» con `REGLAS_DE_RESPETO`, `maxTokens()` = 150; `ChatbotBase` ahora tiene `maxTokens()` con 500 por omisión: el resto de los canales no cambia).
+**Sin migración nueva** (usa las columnas de `migration_whatsapp_publicaciones.sql`).

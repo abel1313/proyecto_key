@@ -727,3 +727,34 @@ Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) 
 - `POST /publicada` → fila PUBLICADA con fecha; repetirlo → 409. `POST /error` tres veces → vuelve a PENDIENTE las dos primeras y a la tercera queda ERROR con el motivo.
 - Dos llamadas simultáneas a `/pendientes` no entregan la misma publicación (bloqueo de fila).
 **Tests existentes que quedaron viejos:** ninguno (`AutorizacionPorEndpointTest` 166/166).
+
+
+## WhatsApp: endpoints del panel para publicar (2026-11-22, rama `feature/whatsapp-mensaje`)
+**Dónde vive:** `hexagonal/whatsapp` — modelo `PublicacionWhatsapp` (`nueva`, `asignarIdentidad`, `reintentar`), `PlantillaDeTextoWhatsapp`, servicio `PublicacionesAdminService`, adaptadores `PublicacionesWhatsappJpaAdapter` y `ProductoParaPublicarJpaAdapter`, controlador `PublicacionesWhatsappAdminController`.
+**Debe comprobar** (compila con `mvn -q compile`; las reglas del dominio y del servicio se probaron con una prueba temporal con puertos falsos, ya borrada — 16 comprobaciones; **no se probó contra MySQL ni con HTTP real**):
+- `POST /v1/whatsapp/publicaciones` con `{varianteId, grupo}` de un artículo con stock y foto → 200; la fila queda `plataforma='whatsapp'`, `estado='PENDIENTE'`, `codigo_ref='J<id>'` y el texto **empieza** con `*Novedades Jade · J<id>*`. Con otro texto, también lo lleva.
+- Sin `varianteId` → 400 «Elige el artículo…»; grupo vacío → 400; texto de 1001 letras → 400; artículo inexistente o `habilitado=0` → 400; artículo con stock 0 → 400 «agotado».
+- Artículo sin foto → `tieneImagen:false` y la publicación se crea igual (el bot publica solo el texto).
+- `programadaPara` en el futuro: `GET /v1/bot/publicaciones/pendientes` no la entrega hasta esa hora.
+- Dos creaciones seguidas dan códigos distintos (`J<id>` único, índice `uk_publicacion_social_codigo_ref`).
+- `cancelar` sobre `PENDIENTE` → `CANCELADA`; sobre `PUBLICADA`/`EN_PROCESO` → 409; id inexistente → 404.
+- `reintentar` sobre `ERROR` → `PENDIENTE` con `intentos=0` y `ultimo_error` vacío; sobre cualquier otro estado → 409.
+- `GET` devuelve lo más nuevo primero, máx. 200, y con la tabla vacía → `code:200`, `lista:[]`.
+- Sin sesión → 401; con un rol que no es ADMIN → 403 en las 4 rutas. **Agregar las 4 rutas a `AutorizacionPorEndpointTest`** (hoy no las lista).
+- `migration_whatsapp_pantalla.sql` corre dos veces sin duplicar (1 fila en `submenu`, 1 en `rol_submenu` para ROLE_ADMIN). **No se pudo correr aquí (sin MySQL): probarla primero en una base desechable.**
+**Tests existentes que quedaron viejos:** ninguno conocido (no se corrió la suite aquí).
+
+
+## WhatsApp: el bot contesta sobre lo publicado — `POST /v1/bot/whatsapp/mensaje` (2026-11-22, rama `feature/whatsapp-mensaje`)
+**Dónde vive:** `hexagonal/whatsapp` — `ResponderMensajeWhatsappService`, `RespuestasSinIa`, `ReferenciaDePublicacion`, `BotWhatsappController`, adaptadores `CerebroWhatsappChatbotAdapter`, `AvisoAdminWhatsappCorreoAdapter`, `ContactoNegocioConfigAdapter`; `ChatbotWhatsappService` y `ChatbotBase.maxTokens()`; consultas nuevas en `IPublicacionSocialRepository`.
+**Debe comprobar** (compila; la lógica se probó con una prueba temporal con puertos falsos, ya borrada — 27 comprobaciones; **no se probó con MySQL, con la IA real ni con HTTP**):
+- Sin `X-Bot-Key` → 401; con `BOT_API_KEY` vacío → 503; `canal` inválido → 400.
+- Código `J42` (en texto o cita) de una publicación `PUBLICADA` en ese grupo + «¿cuánto cuesta?» → `RESPONDER` «<nombre> cuesta $450 MXN 💖» **sin llamar a la IA** (revisar el log: ninguna llamada a OpenAI). El mismo código en otro grupo, o de una `PENDIENTE`, o inexistente → `IGNORAR`.
+- Charla del grupo sin código ni mención → `IGNORAR`. Mención sin código: 0 publicadas en 24 h → `IGNORAR`; 1 → «Sobre X (J42): …»; 2 o más → pregunta de cuál con los códigos.
+- «¿Hay en negro?» → va a la IA (no «Sí hay disponible»); si la IA responde `##ESCALAR##` → `ESCALADO` «En un momento te atendemos 💖», llega **un** correo al admin y el mismo mensaje de esa persona en los siguientes 30 min → `IGNORAR`; pasados 30 min vuelve a contestar.
+- IA caída/timeout (25 s) o respuesta con «OpenAI», «mis instrucciones»… → `ESCALADO`, nunca se manda ese texto.
+- «Lo quiero» con `modoVenta=PRIVADO` desde un grupo → `OFRECER_PRIVADO` con el enlace `wa.me/…?text=Quiero+J42` (si `configuracion_negocio.whatsapp_url` está vacío, sale sin enlace); con `GRUPO` → `ESCALADO` sin enlace y sin pedir datos personales. En ambos llega correo al admin.
+- Ninguna respuesta de la IA en grupo nombra a otra persona, domicilios ni teléfonos (prompt `IDENTIDAD_WHATSAPP`).
+- El resto de los canales del chatbot (sitio, Facebook, Instagram, chat en vivo) siguen con `max_tokens` 500 (regresión de `ChatbotBase.maxTokens()`).
+- Sin respuestas viejas: `reiniciar` el pod borra las pausas (esperado, en memoria).
+**Tests existentes que quedaron viejos:** ninguno conocido (no se corrió la suite aquí).

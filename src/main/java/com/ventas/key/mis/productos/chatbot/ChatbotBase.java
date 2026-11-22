@@ -602,11 +602,16 @@ public abstract class ChatbotBase {
                 });
     }
 
+    /** Tope de tokens de la respuesta. Cada canal puede bajarlo (WhatsApp contesta en 1 a 3 lineas); por omision, 500 como siempre. */
+    protected int maxTokens() {
+        return 500;
+    }
+
     private Mono<String> llamarProveedor(ProveedorIa p, List<Map<String, String>> mensajes) {
         Map<String, Object> body = Map.of(
                 "model", p.modelo(),
                 "messages", mensajes,
-                "max_tokens", 500,
+                "max_tokens", maxTokens(),
                 "temperature", 0.7
         );
         WebClient cliente = clientesIa.computeIfAbsent(p.urlBase(), u -> WebClient.builder().baseUrl(u).build());

@@ -641,6 +641,8 @@ public class SecurityConfig {
                         .requestMatchers("/v1/grupos-precio-cantidad/**").hasRole("ADMIN")
                         // Campañas (2026-11-07): configuración, activar, duplicar y consulta de la vigente; solo administrador.
                         .requestMatchers("/v1/campanas/**").hasRole("ADMIN")
+                        // Publicaciones de WhatsApp (2026-11-22): crear, programar, cancelar y reintentar; solo administrador. El bot usa /v1/bot/**.
+                        .requestMatchers("/v1/whatsapp/**").hasRole("ADMIN")
                         .requestMatchers("/v1/fletes/**").hasRole("ADMIN")
                         // Cálculos de precio de un producto (2026-11-09): guardar y consultar lo que se calculó; solo administrador.
                         .requestMatchers("/v1/calculos-precio/**").hasRole("ADMIN")

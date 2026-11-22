@@ -5,6 +5,7 @@ import com.ventas.key.hexagonal.whatsapp.dominio.modelo.ModoVenta;
 import com.ventas.key.hexagonal.whatsapp.dominio.modelo.PublicacionWhatsapp;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.PublicacionesWhatsappPort;
 import com.ventas.key.mis.productos.redessociales.IPublicacionSocialRepository;
+import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import com.ventas.key.mis.productos.redessociales.PublicacionSocial;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -25,6 +26,7 @@ import java.util.Optional;
 public class PublicacionesWhatsappJpaAdapter implements PublicacionesWhatsappPort {
 
     private final IPublicacionSocialRepository repositorio;
+    private final IVarianteRepository variantes;
 
     @Override
     public List<PublicacionWhatsapp> pendientesVencidasConBloqueo(LocalDateTime ahora, int maximo) {
@@ -44,6 +46,8 @@ public class PublicacionesWhatsappJpaAdapter implements PublicacionesWhatsappPor
     @Override
     public PublicacionWhatsapp guardar(PublicacionWhatsapp p) {
         PublicacionSocial fila = repositorio.buscarWhatsapp(p.id()).orElseThrow();
+        fila.setDescripcionPublicada(p.texto());
+        fila.setCodigoRef(p.codigoRef());
         fila.setEstado(p.estado().name());
         fila.setIntentos(p.intentos());
         fila.setUltimoError(p.ultimoError());
@@ -51,8 +55,39 @@ public class PublicacionesWhatsappJpaAdapter implements PublicacionesWhatsappPor
         return aDominio(repositorio.save(fila));
     }
 
+    @Override
+    public PublicacionWhatsapp crear(PublicacionWhatsapp p) {
+        PublicacionSocial fila = new PublicacionSocial();
+        fila.setVariante(variantes.getReferenceById(p.varianteId()));
+        fila.setPlataforma("whatsapp");
+        fila.setTipoPublicacion(p.imagenId() == null ? "texto" : "foto");
+        fila.setDescripcionPublicada(p.texto());
+        fila.setImagenId(p.imagenId());
+        fila.setScheduledPublishTime(p.programadaPara());
+        fila.setEstado(p.estado().name());
+        fila.setIntentos(p.intentos());
+        fila.setGrupoWhatsapp(p.grupo());
+        fila.setModoVenta(p.modoVenta().name());
+        return aDominio(repositorio.save(fila));
+    }
+
+    @Override
+    public Optional<PublicacionWhatsapp> buscarPorCodigo(String codigoRef) {
+        return repositorio.buscarWhatsappPorCodigo(codigoRef).map(this::aDominio);
+    }
+
+    @Override
+    public List<PublicacionWhatsapp> publicadasDelGrupoDesde(String grupo, LocalDateTime desde) {
+        return repositorio.publicadasWhatsappDelGrupoDesde(grupo, desde).stream().map(this::aDominio).toList();
+    }
+
+    @Override
+    public List<PublicacionWhatsapp> listar(int maximo) {
+        return repositorio.listarWhatsapp(PageRequest.of(0, maximo)).stream().map(this::aDominio).toList();
+    }
+
     private PublicacionWhatsapp aDominio(PublicacionSocial f) {
-        return new PublicacionWhatsapp(f.getId(), f.getGrupoWhatsapp(), f.getDescripcionPublicada(), f.getCodigoRef(),
+        return new PublicacionWhatsapp(f.getId(), f.getVariante() == null ? null : f.getVariante().getId(), f.getGrupoWhatsapp(), f.getDescripcionPublicada(), f.getCodigoRef(),
                 ModoVenta.desde(f.getModoVenta()), f.getImagenId(), f.getScheduledPublishTime(),
                 EstadoPublicacion.desde(f.getEstado()), f.getIntentos() == null ? 0 : f.getIntentos(), f.getUltimoError(),
                 f.getFechaPublicacion());

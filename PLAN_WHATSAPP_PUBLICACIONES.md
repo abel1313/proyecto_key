@@ -197,6 +197,7 @@ Para no confundir: esto lo hace quien mantenga el bot, no el equipo del back.
 | 6 | Verificar con una publicación real cuánto texto muestra la cita en WhatsApp Web (el código `J42` va en la primera línea por eso). | Prueba en QA | Pendiente |
 
 ## 12. Plan de trabajo sugerido
+> **Avance 2026-11-22:** hecho en `feature/whatsapp-publicaciones` (endpoints del bot, llave, migración) y en `feature/whatsapp-mensaje` (endpoints de admin para la pantalla: crear, listar, cancelar, reintentar; plantilla de texto con el código `J42`; alta de la pantalla). **También hecho (Fase C):** `POST /v1/bot/whatsapp/mensaje` con el chat NovedadesJade (plantillas sin IA, IA solo con el producto, escalar, compra → enlace `wa.me`). **Falta:** `/venta` (generar el pedido) y la pantalla del front. Detalle del contrato en `CAMBIOS_FRONT.md`.
 **Back**
 - [ ] Migración SQL: columnas de `publicacion_social`, `WHATSAPP` en `red_social`, catálogo de grupos.
 - [ ] Filtro `X-Bot-Key` para `/v1/bot/**`.
