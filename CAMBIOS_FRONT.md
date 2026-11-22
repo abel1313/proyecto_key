@@ -23973,3 +23973,17 @@ Se manda **uno solo** de los dos ids.
 - Registro en uso al borrar → `No se puede eliminar porque ya se usa en otros registros (por ejemplo en pedidos o ventas).`
 - Cualquier otro texto técnico → `No se pudo guardar el cambio. Revisa los datos e intenta de nuevo; si sigue igual, avisa al administrador.`
 Los mensajes que ya estaban escritos para personas no cambian. El front sigue leyendo `mensaje` como siempre; no hay cambio de contrato.
+
+## WhatsApp: endpoints del bot para publicar en grupos (2026-11-22) — solo en la rama `feature/whatsapp-publicaciones`, sin subir
+Lo consume el **bot** (repo `whatsapp_bot`, Python), no el front Angular. Todas las rutas son `/mis-productos/v1/bot/publicaciones/...`, sin sesión: llevan el encabezado **`X-Bot-Key`** (variable `BOT_API_KEY` en el servidor). Sin llave o con otra → **401**; si el servidor no tiene `BOT_API_KEY` → **503** (cerrado por defecto).
+
+| Método y ruta | Qué hace | Respuesta |
+|---|---|---|
+| `GET /v1/bot/publicaciones/pendientes` | Entrega (máx. 5) las publicaciones PENDIENTE a las que ya les toca salir y las pasa a EN_PROCESO (no se vuelven a entregar) | `[{id, grupo, texto, imagenPath, codigoRef, modoVenta}]`; `imagenPath` es relativo a la base del back (`/v1/bot/publicaciones/12/imagen`) o `null` si no hay imagen; lista vacía si no hay |
+| `GET /v1/bot/publicaciones/{id}/imagen` | La imagen ya reducida (lado mayor 1280 px, JPEG calidad 0.8). **Binario `image/jpeg`**, no base64 | 200 bytes · 404 si no existe o no tiene imagen (el bot publica solo el texto) |
+| `POST /v1/bot/publicaciones/{id}/publicada` | Marca PUBLICADA y guarda la fecha | 204 · 404 · 409 si no estaba EN_PROCESO |
+| `POST /v1/bot/publicaciones/{id}/error` con `{ "detalle": "..." }` | Suma un intento; con menos de 3 vuelve a PENDIENTE, al tercero queda ERROR | 204 · 404 · 409 si no estaba EN_PROCESO |
+
+Estados: `PENDIENTE → EN_PROCESO → PUBLICADA | ERROR`, y `CANCELADA`. No se usa `PROGRAMADA` a propósito: ese estado lo dispara el job de Facebook/Instagram/TikTok.
+**Migración (la corre el dueño a mano, antes de desplegar):** `migration_whatsapp_publicaciones.sql` agrega a `publicacion_social` las columnas `grupo_whatsapp`, `codigo_ref` (único) y `modo_venta`.
+**Falta (siguientes pasos del plan):** crear/programar/cancelar publicaciones desde el panel (endpoints de admin + pantalla), el chat «NovedadesJade» con su prompt, `POST /v1/bot/whatsapp/mensaje` y `/venta`.

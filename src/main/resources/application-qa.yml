@@ -129,6 +129,10 @@ openai:
 chat:
   admin-email: ${CHAT_ADMIN_EMAIL:admin@novedades-jade.com.mx}
 
+# Llave del bot de WhatsApp (repo whatsapp_bot): encabezado X-Bot-Key en /v1/bot/**. Vacia = esas rutas responden 503.
+bot:
+  api-key: ${BOT_API_KEY:}
+
 whatsapp:
   proveedor: ${WHATSAPP_PROVEEDOR:callmebot}
   callmebot-apikey: ${WHATSAPP_APIKEY:}

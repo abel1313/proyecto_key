@@ -249,6 +249,10 @@ public class SecurityConfig {
                         // validado por firma X-Hub-Signature-256 dentro del controlador) ──────
                         .requestMatchers("/v1/redes-sociales/facebook/webhook").permitAll()
 
+                        // ── Bot de WhatsApp (repo whatsapp_bot): sin sesion, se valida el encabezado X-Bot-Key
+                        // dentro del controlador (BotKeyValidator; cerrado si bot.api-key no esta configurada) ──
+                        .requestMatchers("/v1/bot/**").permitAll()
+
                         // ── Palabras clave (GET público; escritura solo ADMIN) ────────────
                         .requestMatchers(HttpMethod.GET, "/v1/palabras-clave/**").permitAll()
                         // Fase 3 de permisos (2026-09-05): "eliminar" separado del resto de

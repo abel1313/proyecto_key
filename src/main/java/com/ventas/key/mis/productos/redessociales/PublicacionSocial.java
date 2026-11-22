@@ -71,4 +71,14 @@ public class PublicacionSocial extends BaseId {
 
     @Column(name = "ultimo_error", columnDefinition = "TEXT")
     private String ultimoError;
+
+    // Solo plataforma "whatsapp" (bot NovedadesJade). Ver hexagonal/whatsapp y PLAN_WHATSAPP_PUBLICACIONES.md.
+    @Column(name = "grupo_whatsapp")
+    private String grupoWhatsapp;
+
+    @Column(name = "codigo_ref")
+    private String codigoRef;
+
+    @Column(name = "modo_venta")
+    private String modoVenta;
 }

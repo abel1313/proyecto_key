@@ -87,6 +87,17 @@ Todo lo demás en el grupo **se ignora en silencio**: no se contesta ni se escal
 
 En mensajes **privados** sí se contesta con el catálogo completo, como en R3 de `botredes/README.md`.
 
+### 5.1 Decisión 2026-11-22: qué pasa cuando alguien comenta sin citar ni poner el código (PROPUESTA, el dueño la confirma)
+WhatsApp no tiene «comentarios» como Facebook: el bot solo ve texto. Orden de confianza propuesto:
+| Señal | Confianza | Qué hace el bot |
+|---|---|---|
+| Cita (responde a) el mensaje del bot y la cita trae el código `J42` | Alta | Contesta sobre esa publicación |
+| El texto trae el código `J42` | Alta | Igual |
+| Sin cita y **una sola** publicación activa en ese grupo en 24 h | Media | Contesta **diciendo de cuál habla** («Sobre la bolsa tote J42: …») para que un error se note |
+| Sin cita y **varias** publicaciones activas | Baja | **No adivina**: pregunta «¿te refieres a J42 o J43?» |
+| Sin cita, sin código y sin publicación activa | Ninguna | Se ignora en silencio |
+El texto de la publicación pide «responde a este mensaje o escribe J42». Si en la práctica casi nadie cita, la salida es publicar **una sola cosa a la vez por grupo**.
+
 ## 6. Chat nuevo y prompt nuevo (NovedadesJade)
 Crear `ChatbotWhatsappService extends ChatbotBase`, con un método por situación, igual que Instagram/Facebook:
 
@@ -174,6 +185,16 @@ Para no confundir: esto lo hace quien mantenga el bot, no el equipo del back.
 | ¿Mención real como `@NovedadesJade` o solo código `J42`? | Ambos; el código es lo que siempre funciona. |
 | ¿Quién crea el catálogo de grupos? | El admin, desde la misma pantalla. |
 | ¿La venta en grupo pide datos? | No: solo apartar; los datos se piden en privado. |
+
+### 11.1 Dudas abiertas (2026-11-22)
+| # | Duda | Quién la resuelve | Estado |
+|---|---|---|---|
+| 1 | ¿Se confirma la propuesta de §5.1 (sin cita y con varias publicaciones activas el bot pregunta de cuál habla, nunca adivina)? | Dueño | Pendiente |
+| 2 | ¿Los clientes suelen **citar** el mensaje del bot o escriben suelto? Si casi nadie cita: una sola publicación activa por grupo. | Dueño (por experiencia con los grupos) | Pendiente |
+| 3 | Generar `BOT_API_KEY` (larga y al azar), ponerla en el servidor de QA y en el bot (`PUBLICACIONES_API_KEY`). | Dueño | Pendiente |
+| 4 | El repo `whatsapp_bot` no está conectado a la sesión: ¿se agrega para ajustar el bot a estos endpoints (`imagenPath` relativo, estados)? | Dueño | Pendiente |
+| 5 | ¿Número de WhatsApp dedicado al bot? (automatizar WhatsApp Web no es oficial; el número puede bloquearse.) | Dueño | Pendiente |
+| 6 | Verificar con una publicación real cuánto texto muestra la cita en WhatsApp Web (el código `J42` va en la primera línea por eso). | Prueba en QA | Pendiente |
 
 ## 12. Plan de trabajo sugerido
 **Back**

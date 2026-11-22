@@ -114,6 +114,10 @@ facebook:
   page-access-token: asdasd
   api-version: v25.0
 
+# Llave del bot de WhatsApp (repo whatsapp_bot): encabezado X-Bot-Key en /v1/bot/**. Vacia = esas rutas responden 503.
+bot:
+  api-key: ${BOT_API_KEY:}
+
 whatsapp:
   # Proveedor activo: callmebot | twilio | ninguno
   proveedor: ${WHATSAPP_PROVEEDOR:callmebot}

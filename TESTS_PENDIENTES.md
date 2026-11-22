@@ -717,3 +717,13 @@ Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) 
 - `PUT /v1/pedidos/{id}/datos-visibles`: acepta CLIENTE/RECEPTOR; rechaza RECEPTOR sin nombre de quien recibe y CLIENTE sin cliente; `PUT /entrega` con nombre vacío rechazado si está en RECEPTOR.
 - Errores: repetir un código de barras (Nuevo producto y Agregar artículo) → mensaje «El código de barras «X» ya está registrado…», no el texto de MySQL; el log del servidor sí trae el detalle técnico; mensajes que ya eran claros salen iguales.
 **Pendiente para después (anotado):** que el permiso de editar estos datos sea configurable por rol (hoy solo ADMIN, fijo en `SecurityConfig`).
+
+## WhatsApp: endpoints del bot (2026-11-22, rama `feature/whatsapp-publicaciones`)
+**Debe comprobar** (no hay tests automáticos permanentes; el dominio, la llave y la reducción de imagen se probaron con una prueba temporal ya borrada):
+- `migration_whatsapp_publicaciones.sql` corre dos veces sin error y deja 3 columnas + el índice único (la consulta final devuelve 4 filas). **No se pudo correr aquí (sin MySQL): probarla primero en una base desechable.**
+- Sin `X-Bot-Key` o con otra → 401; con `BOT_API_KEY` vacío en el servidor → 503 en las 4 rutas.
+- `GET /pendientes` con una fila `plataforma='whatsapp'`, `estado='PENDIENTE'` y hora vencida (o sin hora) la entrega UNA vez; al llamar otra vez ya no sale (queda EN_PROCESO). Una fila de Facebook/Instagram/TikTok nunca sale por aquí, y el job de Facebook no toca las de WhatsApp.
+- `GET /{id}/imagen` devuelve JPEG ≤ 1280 px (una foto de 3000×2000 sale de 1280×853); 404 si no tiene imagen.
+- `POST /publicada` → fila PUBLICADA con fecha; repetirlo → 409. `POST /error` tres veces → vuelve a PENDIENTE las dos primeras y a la tercera queda ERROR con el motivo.
+- Dos llamadas simultáneas a `/pendientes` no entregan la misma publicación (bloqueo de fila).
+**Tests existentes que quedaron viejos:** ninguno (`AutorizacionPorEndpointTest` 166/166).
