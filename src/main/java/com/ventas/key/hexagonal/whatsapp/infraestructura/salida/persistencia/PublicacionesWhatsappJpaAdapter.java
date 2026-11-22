@@ -51,7 +51,10 @@ public class PublicacionesWhatsappJpaAdapter implements PublicacionesWhatsappPor
         fila.setEstado(p.estado().name());
         fila.setIntentos(p.intentos());
         fila.setUltimoError(p.ultimoError());
-        fila.setFechaPublicacion(p.fechaPublicacion());
+        // fecha_publicacion es NOT NULL en la tabla: nunca se pisa con vacio. Solo cambia cuando la publicacion ya salio (PUBLICADA).
+        if (p.fechaPublicacion() != null) {
+            fila.setFechaPublicacion(p.fechaPublicacion());
+        }
         return aDominio(repositorio.save(fila));
     }
 
@@ -68,6 +71,8 @@ public class PublicacionesWhatsappJpaAdapter implements PublicacionesWhatsappPor
         fila.setIntentos(p.intentos());
         fila.setGrupoWhatsapp(p.grupo());
         fila.setModoVenta(p.modoVenta().name());
+        // fecha_publicacion es NOT NULL en la tabla real: mientras no salga lleva la fecha de alta; al publicarse se reemplaza por la real.
+        fila.setFechaPublicacion(LocalDateTime.now());
         return aDominio(repositorio.save(fila));
     }
 
@@ -90,6 +95,6 @@ public class PublicacionesWhatsappJpaAdapter implements PublicacionesWhatsappPor
         return new PublicacionWhatsapp(f.getId(), f.getVariante() == null ? null : f.getVariante().getId(), f.getGrupoWhatsapp(), f.getDescripcionPublicada(), f.getCodigoRef(),
                 ModoVenta.desde(f.getModoVenta()), f.getImagenId(), f.getScheduledPublishTime(),
                 EstadoPublicacion.desde(f.getEstado()), f.getIntentos() == null ? 0 : f.getIntentos(), f.getUltimoError(),
-                f.getFechaPublicacion());
+                f.getEstado() != null && EstadoPublicacion.desde(f.getEstado()) == EstadoPublicacion.PUBLICADA ? f.getFechaPublicacion() : null);
     }
 }

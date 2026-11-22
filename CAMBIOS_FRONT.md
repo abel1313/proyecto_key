@@ -24038,3 +24038,9 @@ Lo consume el **bot** (repo `whatsapp_bot`), no el front Angular. `POST /mis-pro
 - Control de abuso por persona (`whatsapp:<chat>:<remitente>`), no por IP: bloqueos y 20 mensajes/hora de `ChatbotBlockService`.
 **Dónde vive:** `hexagonal/whatsapp` (`ResponderMensajeWhatsappService`, `RespuestasSinIa`, `ReferenciaDePublicacion`), `ChatbotWhatsappService` (prompt «NovedadesJade» con `REGLAS_DE_RESPETO`, `maxTokens()` = 150; `ChatbotBase` ahora tiene `maxTokens()` con 500 por omisión: el resto de los canales no cambia).
 **Sin migración nueva** (usa las columnas de `migration_whatsapp_publicaciones.sql`).
+
+
+### Revisión 2026-11-22 de los endpoints de WhatsApp (rama `feature/whatsapp-mensaje`): dos correcciones
+- **401 y 503 del bot salían como 400.** `ExceptionGlobal` convierte cualquier `RuntimeException` en 400 y `ResponseStatusException` lo es: una llave inválida (debía ser **401**) o un servidor sin `BOT_API_KEY` (debía ser **503**) respondían **400**. No abría la puerta (fallaba cerrado), pero el bot no podía distinguir «llave mala» de «mensaje mal armado». Ahora `BotApiExceptionHandler` (solo para `BotPublicacionesController` y `BotWhatsappController`, con prioridad) devuelve el estado que se pidió. El resto del back no cambia. Lo de arriba («Sin llave o con otra → 401; si el servidor no tiene `BOT_API_KEY` → 503») ahora sí es cierto.
+- **`fecha_publicacion` es NOT NULL en `publicacion_social`** (`migration_publicacion_social.sql`). H2 no lo detecta porque crea el esquema desde las entidades. Al crear una publicación de WhatsApp esa columna lleva la fecha de alta mientras no salga, y se reemplaza por la real al pasar a `PUBLICADA`; guardar ya nunca la deja vacía. En la API `fechaPublicacion` viene `null` hasta que está `PUBLICADA`.
+- **Para el front:** `GET /v1/whatsapp/publicaciones` y las demás rutas del panel no cambian de contrato.

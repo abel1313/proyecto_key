@@ -758,3 +758,15 @@ Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) 
 - El resto de los canales del chatbot (sitio, Facebook, Instagram, chat en vivo) siguen con `max_tokens` 500 (regresión de `ChatbotBase.maxTokens()`).
 - Sin respuestas viejas: `reiniciar` el pod borra las pausas (esperado, en memoria).
 **Tests existentes que quedaron viejos:** ninguno conocido (no se corrió la suite aquí).
+
+
+## Revisión 2026-11-22 de WhatsApp (rama `feature/whatsapp-mensaje`): qué se comprobó y qué falta
+**Comprobado con pruebas temporales (ya borradas; el repo no lleva tests nuevos):**
+- Contra H2 (`@DataJpaTest`, 3 pruebas): las consultas JPQL nuevas (`buscarWhatsappPorCodigo`, `publicadasWhatsappDelGrupoDesde` sin distinguir mayúsculas, `listarWhatsapp`, `pendientesWhatsappConBloqueo`), crear con código `J<id>` y texto, recoger UNA vez, publicar, errores hasta `ERROR` y reintento, que una publicación de Facebook no se mezcla, y el caso de uso real contestando el precio sin IA con los adaptadores reales.
+- Por HTTP con la seguridad real y Spring completo (5 pruebas): panel solo ADMIN (sin sesión 401/403, ROLE_USUARIO 403, ADMIN pasa); `/v1/bot/**` sin llave o con llave mala 401 (aunque traiga JWT), llave vacía en el servidor 503; canal inválido/ausente/cuerpo vacío 400; `programadaPara` ISO; punta a punta crear → recoger → publicada → contestar → ignorar en otro grupo → compra.
+- Regresión: `AutorizacionPorEndpointTest` 166/166, `Chatbot*Test`, `AtenderInteraccionServiceTest`, `PoliticaDeRespuestaTest`, `RespaldoIaTest`, `CrudHeredadoCerradoTest` y `CorteDeCajaSoloAdminTest` en verde (el cambio de `ChatbotBase.maxTokens()` no movió los otros canales).
+**Debe comprobar (sigue pendiente):**
+- Con **MySQL real**: correr `migration_whatsapp_publicaciones.sql` y `migration_whatsapp_pantalla.sql` dos veces en una base desechable (aquí no hay MySQL: solo se revisó la sintaxis con un analizador; las sentencias `PREPARE` no se pudieron analizar). Crear una publicación y confirmar que **no** falla por `fecha_publicacion` NOT NULL y que el índice único `uk_publicacion_social_codigo_ref` impide repetir códigos.
+- Con la **IA real** (OpenAI): una pregunta que no es de plantilla («¿de qué material es?») contesta en 1 a 3 líneas sin datos de otros clientes; una fuera del producto devuelve `##ESCALAR##`.
+- El correo al admin con `chat.admin-email` configurado, y el enlace `wa.me` con `configuracion_negocio.whatsapp_url` lleno.
+- Con el **bot real** en WhatsApp: ver `whatsapp_bot/docs/PRUEBA_LOCAL.md`.

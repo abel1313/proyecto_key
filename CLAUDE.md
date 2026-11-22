@@ -357,6 +357,8 @@ El 2026-09-30 las llaves de TikTok quedaron vacías en prod por eso, y no se det
 en pantalla. Las de redes sociales ya se revisan solas al arrancar (log "Redes sociales: ...").
 Checklist de TikTok: `TIKTOK_SETUP.md`.
 
+**`BOT_API_KEY` (bot de WhatsApp, 2026-11-22):** la llave que el bot manda en `X-Bot-Key` a `/v1/bot/**`. Misma regla: va en el Secret y se da de alta en el deployment (`kubectl set env ... --from=secret/db-secret --keys=BOT_API_KEY`), se mide con `${#BOT_API_KEY}` y **nunca** se escribe en el repo ni en un `.md`. Sin ella (o vacía) todo `/v1/bot/**` responde 503 a propósito (cerrado por defecto). En el bot se llama `PUBLICACIONES_API_KEY`.
+
 ## JWT — Configuración y problema conocido resuelto
 
 **Tiempos de expiración (JwtUtil.java — hardcodeados, no están en yml):**
