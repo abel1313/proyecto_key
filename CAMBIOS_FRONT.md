@@ -10,6 +10,16 @@ Los endpoints que dicen `✅ proyecto-key (9091)` no pudieron moverse al micro (
 
 ---
 
+## 2026-11-26 — Hotfix 4: los scripts `.sql` y `openapi.yml` ya no se pueden bajar por HTTP
+
+**No hay cambio de contrato: el front no tiene que tocar nada** (se revisó `producto_venta_online`: nada pide `*.sql` ni `openapi.yml` por URL).
+
+- **Antes:** `GET /mis-productos/migration_xxx.sql` (y cualquier otro `.sql` de `static/`) y `GET /mis-productos/openapi.yml` los devolvía con **200** a cualquier cuenta con sesión, incluida una clienta de la tienda (`ROLE_USUARIO`): se veían nombres de tablas, columnas, roles y permisos internos. Sin sesión daba 401.
+- **Ahora:** esas rutas responden **401** sin sesión y **403** con sesión, incluso al administrador. No cambia ninguna otra ruta.
+- Los logos `/mis-productos/imagenes/logo_fondo.png` y `logo_sin_fondo.png` se quedan igual.
+
+---
+
 ## 2026-11-26 — Hotfix 3: reportes atorados y margen negativo (reporte por categoría / Precios calculados)
 
 **Antes:** un reporte Excel/PDF que se quedaba en `PENDIENTE` o `GENERANDO` (por ejemplo si el servidor se reiniciaba) bloqueaba al administrador hasta por 7 días (el límite de 3 reportes lo contaba), y una sola fila de «Precios calculados» con margen fuera de 0–100 % hacía que todo el listado respondiera 400.
