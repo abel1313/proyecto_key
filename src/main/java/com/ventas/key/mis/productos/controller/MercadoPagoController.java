@@ -21,7 +21,6 @@ import java.util.Map;
 public class MercadoPagoController {
 
     private final MercadoPagoService mercadoPagoService;
-    private final org.springframework.core.env.Environment entorno;
 
     @PostMapping("/iniciar")
     public ResponseEntity<Map<String, String>> iniciarPago(@RequestBody PagoMPRequest request) {
@@ -110,26 +109,6 @@ public class MercadoPagoController {
             @RequestParam(defaultValue = "1") int pagina,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(mercadoPagoService.listarIntentsPorEstado(estado, pagina, size));
-    }
-
-    @PostMapping("/test/simular-pago/{intentId}")
-    public ResponseEntity<Map<String, String>> simularPago(@PathVariable String intentId) {
-        // @Profile en un METODO de un controlador no lo apaga (Spring lo ignora): el endpoint existia tambien en produccion y un admin
-        // comprometido confirmaba pedidos sin pago. Se revisa aqui: solo en los entornos de prueba (auditoria de seguridad 2026-11-03).
-        if (!entorno.acceptsProfiles(org.springframework.core.env.Profiles.of("dev", "qa", "local-qa"))) {
-            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).body(Map.of("mensaje", "No disponible"));
-        }
-        try {
-            mercadoPagoService.simularPagoCompletado(intentId);
-            return ResponseEntity.ok(Map.of(
-                    "intentId", intentId,
-                    "estado", "FINISHED",
-                    "mensaje", "Pago simulado correctamente"
-            ));
-        } catch (Exception e) {
-            log.error("Error simulando pago: {}", e.getMessage());
-            return ResponseEntity.internalServerError().body(Map.of("mensaje", e.getMessage()));
-        }
     }
 
     @GetMapping("/historial/mp")

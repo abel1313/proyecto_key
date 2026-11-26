@@ -22931,20 +22931,19 @@ tarjeta (400 con el motivo). Un pedido unido en un **grupo** tampoco se cobra co
 
 Todas las rutas llevan `/mis-productos/v1/pagos-tarjeta` y exigen sesión. Respuesta: `ResponseGeneric` con `data`.
 
-### `GET /v1/pagos-tarjeta/pedido/{pedidoId}/meses`
-Meses sin intereses que se pueden ofrecer hoy para ese pedido, **y si no hay, por qué** (2026-10-28).
-`GET /mis-productos/v1/pagos-tarjeta/pedido/{pedidoId}/meses`
+## 🔒 Seguridad, segunda tanda (2026-11-03 noche; el tope de size, simular-pago y Facebook son código; el YML de QA no. En producción simular-pago y Facebook se cerraron con el hotfix 2 del 2026-11-26, ver la nota al final de esta tabla)
 
-**Response** (`ResponseGeneric`): `data` = `{ meses, motivo, articulosSinMeses }`
-- `meses`: lista de plazos, ej. `[3, 6]`. **Vacía = solo de contado.**
-- `motivo`: texto para mostrar cuando `meses` viene vacía (en `null` cuando sí hay meses). Ej.: *"Este artículo no acepta meses sin
-  intereses, por eso el pedido se paga de contado: Falda midi"*, *"La compra debe ser de al menos $300 para ofrecer meses sin
-  intereses"*, *"Este tipo de pedido se paga en efectivo o transferencia: no admite meses sin intereses"*.
-- `articulosSinMeses`: nombres de los artículos que impiden los meses (vacía si el motivo es otro).
+| Qué | Antes | Después |
+|---|---|---|
+| `POST /v1/auth/refresh` y `/v1/auth/logout` (**solo QA** por ahora) | cualquiera podía forzarlos desde otro sitio | exigen el header `X-Requested-With: XMLHttpRequest`. El front ya lo manda; **producción lo enciende cuando el front de prod esté confirmado** (`seguridad.exigir-header-refresh=true` en el YML de prod) |
+| CORS de QA | incluía `venta-bolsas-online.netlify.app` con credenciales | solo `https://qa.shop.novedades-jade.com.mx` |
+| Swagger en QA | `/swagger-ui.html` y `/v3/api-docs` abiertos | apagados (`springdoc.*.enabled=false`) |
+| `POST /v1/mp/test/simular-pago/{intentId}` | existía también en producción (`@Profile` en un método no lo apaga) | `404` fuera de los perfiles `dev`, `qa` y `local-qa` (en `dev`/`qa`). **En producción (`main`, hotfix 2 del 2026-11-26) el endpoint se borró:** ya no existe: un admin recibe `500` «Error interno del servidor» (la ruta inexistente cae en el manejador genérico, no se ejecuta nada) y sin sesión `401`/`403` |
+| Webhook de Facebook sin `FACEBOOK_APP_SECRET` | aceptaba eventos sin firma | **rechaza** (403). En `dev`/`qa` solo se acepta sin firma con `facebook.permitir-sin-firma=true` (YML de dev). **En producción (hotfix 2, 2026-11-26) no hay excepción:** sin `FACEBOOK_APP_SECRET` el webhook responde 403 y el bot de comentarios/mensajes de Facebook e Instagram deja de recibir eventos hasta que se configure |
+| Listados genéricos `GET …/getAll?size=` | sin tope (`size=1000000`) | tope de 1000 por página en el CRUD genérico; tope de 200 en `/v1/productos/obtenerProductos`, `buscarNombreOrCodigoBarra` y los listados públicos de `/v1/variantes` (`buscar`, `buscar-filtrado`, `porProducto/{id}/paginado`, `imagenes/{id}/paginado`, `paginado/resumen`) |
 
-**Qué cambia respecto a antes:** `data` era una lista de números (`[3]`) y ahora es un objeto; los plazos pasaron a `data.meses`.
-Todavía ninguna pantalla lo consumía. Reglas: se ofrecen solo si **todos** los artículos aceptan MSI, el total es de al menos $300 y el
-plan existe como tarjeta de crédito. Hoy el catálogo solo tiene el plan de 3 meses (6, 9 y 12 requieren filas en `pagos_y_meses`).
+**Hotfix 2 de protección a producción (2026-11-26), para el front: sin cambios.** El front nunca llamó a `POST /v1/mp/test/simular-pago/{id}` (se buscó en dev, qa y master del front): en prod ese endpoint ya no existe. `/v1/mp/iniciar`, `/estado/{id}`, `/webhook`, `/cancelar/{id}` e `/historial*` siguen igual. El webhook de Facebook (`POST /v1/redes-sociales/facebook/webhook`) lo llama Meta, no el front: si `FACEBOOK_APP_SECRET` falta responde 403.
+
 
 ### Casilla "Acepta meses sin intereses" (solo administrador, 2026-10-28)
 Un producto la tiene **apagada por default** y aplica a todos sus artículos. Un artículo puede **heredar** la del producto

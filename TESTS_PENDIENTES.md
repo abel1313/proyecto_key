@@ -728,4 +728,14 @@ Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) 
 - `GET /v1/variantes/buscar`, `buscar-filtrado`, `porProducto/{id}/paginado`, `imagenes/{id}/paginado`, `paginado/resumen` con `size=1000000` → 200 por página; `GET /v1/variantes/getAll?page=0&size=1000000` → 1000 por página.
 - Con perfil `docker`: `/v3/api-docs` y `/swagger-ui/index.html` responden **500** (el manejador genérico convierte la ruta inexistente en 500, con stack trace en el log; no expone nada) y `/swagger-ui.html` 401. Si se quiere 404, agregar un manejador de `NoResourceFoundException` (cambio aparte). Medido con el contexto de prueba, no con el perfil `docker` completo.
 - `GET /v1/clientes/getAll?page=-1&size=1000000` (admin) → página 0 con 1000 elementos, sin 500.
-- Sigue abierto en prod, y no es de este hotfix: `POST /v1/mp/test/simular-pago/{id}` (`@Profile("dev")` solo en un método, solo ROLE_ADMIN) y el webhook de Facebook acepta peticiones sin firma si falta el secreto. La tabla de `CAMBIOS_FRONT.md` ~22932 dice que ya llegaron a prod: no es cierto.
+- (Cerrado en el hotfix 2 de abajo: simular-pago y el webhook de Facebook sin firma.)
+
+## Hotfix 2 de protección a producción (2026-11-26)
+**Dónde:** `MercadoPagoController` (se borró `simularPago`, `POST /v1/mp/test/simular-pago/{intentId}`), `MercadoPagoService` (se borró `simularPagoCompletado`, sin más usos) y `FacebookWebhookController.firmaValida` (secreto vacío = rechazar).
+**Debe comprobar:**
+- `POST /v1/mp/test/simular-pago/x` (admin) → **500** «Error interno del servidor» (medido con el contexto completo: la ruta ya no existe y el manejador genérico la convierte en 500; no se ejecuta nada), sin sesión → 401; si se quiere 404 hay que agregar un manejador de `NoResourceFoundException` (cambio aparte); un intento en `PROCESSING` no cambia a `FINISHED` ni su pedido a pagado. `/v1/mp/iniciar`, `/estado/{id}`, `/webhook`, `/cancelar/{id}`, `/historial`, `/historial/pedido/{id}`, `/historial/estado/{e}` y `/historial/mp` siguen respondiendo igual que antes.
+- Webhook de Facebook con `FACEBOOK_APP_SECRET` vacío: `POST` sin firma → 403 y el bot NO recibe nada; `POST` con cualquier firma `sha256=...` → 403; el log dice «FACEBOOK_APP_SECRET no configurado: webhook rechazado».
+- Con secreto configurado: firma correcta (`sha256=` + HMAC-SHA256 del cuerpo) → 200 y se procesa el comentario/mensaje; firma incorrecta o ausente → 403.
+- `GET /v1/redes-sociales/facebook/webhook?hub.mode=subscribe&hub.verify_token=...&hub.challenge=x` con `FACEBOOK_WEBHOOK_VERIFY_TOKEN` vacío → 403 (ya era así); con token correcto → devuelve el challenge.
+- En prod, tras el deploy: `kubectl exec ... sh -c 'echo ${#FACEBOOK_APP_SECRET}'` > 0, y comentar en una publicación de prueba confirma que el bot sigue contestando.
+**Bajado a dev/qa el 2026-11-26** con la versión de `main` (conflictos resueltos a su favor): el simulador de pago se borró también en dev/qa y el webhook de Facebook ya no acepta sin firma en ningún perfil (se quitó `facebook.permitir-sin-firma`).

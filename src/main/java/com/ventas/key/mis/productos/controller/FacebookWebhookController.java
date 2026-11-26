@@ -50,9 +50,6 @@ public class FacebookWebhookController {
     @Value("${facebook.app-secret:}")
     private String appSecret;
 
-    @Value("${facebook.permitir-sin-firma:false}")
-    private boolean permitirSinFirma;
-
     @Operation(
         summary = "Verificación del webhook (paso único, lo llama Meta al registrar la URL)",
         description = "Meta llama esto UNA VEZ al configurar la URL del webhook en el portal de desarrolladores, " +
@@ -99,13 +96,7 @@ public class FacebookWebhookController {
 
     private boolean firmaValida(String rawBody, String firmaHeader) {
         if (appSecret.isBlank()) {
-            // Falla CERRADO: sin el secreto cualquiera podia mandar eventos inventados y el bot contestaba en la pagina gastando OpenAI. Solo si se
-            // pide expresamente (facebook.permitir-sin-firma=true, p. ej. en desarrollo) se acepta sin firma.
-            if (permitirSinFirma) {
-                log.warn("FACEBOOK_APP_SECRET no configurado -- aceptando webhook SIN validar firma (facebook.permitir-sin-firma=true)");
-                return true;
-            }
-            log.error("FACEBOOK_APP_SECRET no configurado: se rechaza el webhook de Facebook");
+            log.warn("FACEBOOK_APP_SECRET no configurado: webhook rechazado");
             return false;
         }
         if (firmaHeader == null || !firmaHeader.startsWith("sha256=")) {
