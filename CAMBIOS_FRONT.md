@@ -22928,16 +22928,18 @@ front. Al revés, el front llamaría `/v2/...` a un back que no las tiene → 40
 **Fotos (`##BUSCAR##`):** cada tarjeta lleva `tieneImagen`. Si el cliente pide ver un producto y **ninguno** tiene foto, la respuesta es *«Por ahora ese producto no tiene foto cargada 📷…»* y `productos` viene vacío (antes salía «aquí tienes la imagen» con una tarjeta vacía con una cámara). Si no se encontró nada: *«No encontré ese producto para mostrártelo…»*. Las tarjetas sin foto no se mandan (tampoco en «Ver más»).
 
 
-## 🔒 Seguridad, segunda tanda (2026-11-03 noche; el tope de size, simular-pago y Facebook son código y llegan a producción con el merge; el YML de QA no)
+## 🔒 Seguridad, segunda tanda (2026-11-03 noche; el tope de size, simular-pago y Facebook son código; el YML de QA no. En producción simular-pago y Facebook se cerraron con el hotfix 2 del 2026-11-26, ver la nota al final de esta tabla)
 
 | Qué | Antes | Después |
 |---|---|---|
 | `POST /v1/auth/refresh` y `/v1/auth/logout` (**solo QA** por ahora) | cualquiera podía forzarlos desde otro sitio | exigen el header `X-Requested-With: XMLHttpRequest`. El front ya lo manda; **producción lo enciende cuando el front de prod esté confirmado** (`seguridad.exigir-header-refresh=true` en el YML de prod) |
 | CORS de QA | incluía `venta-bolsas-online.netlify.app` con credenciales | solo `https://qa.shop.novedades-jade.com.mx` |
 | Swagger en QA | `/swagger-ui.html` y `/v3/api-docs` abiertos | apagados (`springdoc.*.enabled=false`) |
-| `POST /v1/mp/test/simular-pago/{intentId}` | existía también en producción (`@Profile` en un método no lo apaga) | `404` fuera de los perfiles `dev`, `qa` y `local-qa` |
-| Webhook de Facebook sin `FACEBOOK_APP_SECRET` | aceptaba eventos sin firma | **rechaza** (403). Solo se acepta sin firma con `facebook.permitir-sin-firma=true` (puesto en el YML de dev). **Antes de llevarlo a producción hay que confirmar que `FACEBOOK_APP_SECRET` está configurado ahí** |
+| `POST /v1/mp/test/simular-pago/{intentId}` | existía también en producción (`@Profile` en un método no lo apaga) | `404` fuera de los perfiles `dev`, `qa` y `local-qa` (en `dev`/`qa`). **En producción (`main`, hotfix 2 del 2026-11-26) el endpoint se borró:** ya no existe: un admin recibe `500` «Error interno del servidor» (la ruta inexistente cae en el manejador genérico, no se ejecuta nada) y sin sesión `401`/`403` |
+| Webhook de Facebook sin `FACEBOOK_APP_SECRET` | aceptaba eventos sin firma | **rechaza** (403). En `dev`/`qa` solo se acepta sin firma con `facebook.permitir-sin-firma=true` (YML de dev). **En producción (hotfix 2, 2026-11-26) no hay excepción:** sin `FACEBOOK_APP_SECRET` el webhook responde 403 y el bot de comentarios/mensajes de Facebook e Instagram deja de recibir eventos hasta que se configure |
 | Listados genéricos `GET …/getAll?size=` | sin tope (`size=1000000`) | tope de 1000 por página en el CRUD genérico; tope de 200 en `/v1/productos/obtenerProductos`, `buscarNombreOrCodigoBarra` y los listados públicos de `/v1/variantes` (`buscar`, `buscar-filtrado`, `porProducto/{id}/paginado`, `imagenes/{id}/paginado`, `paginado/resumen`) |
+
+**Hotfix 2 de protección a producción (2026-11-26), para el front: sin cambios.** El front nunca llamó a `POST /v1/mp/test/simular-pago/{id}` (se buscó en dev, qa y master del front): en prod ese endpoint ya no existe. `/v1/mp/iniciar`, `/estado/{id}`, `/webhook`, `/cancelar/{id}` e `/historial*` siguen igual. El webhook de Facebook (`POST /v1/redes-sociales/facebook/webhook`) lo llama Meta, no el front: si `FACEBOOK_APP_SECRET` falta responde 403.
 
 
 ## 🤖 Chat de la tienda: qué ve el cliente y qué ve el administrador (2026-11-04, auditoría de datos del bot; ya en producción)

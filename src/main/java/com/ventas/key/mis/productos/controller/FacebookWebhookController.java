@@ -96,8 +96,8 @@ public class FacebookWebhookController {
 
     private boolean firmaValida(String rawBody, String firmaHeader) {
         if (appSecret.isBlank()) {
-            log.warn("FACEBOOK_APP_SECRET no configurado -- aceptando webhook SIN validar firma (inseguro, configurar en cuanto se pueda)");
-            return true;
+            log.warn("FACEBOOK_APP_SECRET no configurado: webhook rechazado");
+            return false;
         }
         if (firmaHeader == null || !firmaHeader.startsWith("sha256=")) {
             return false;
