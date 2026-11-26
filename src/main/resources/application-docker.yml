@@ -62,11 +62,14 @@ clave-seguridad:
   clave: ${TOKEN_JWT}
 
 seguridad:
+  # El front de produccion (master, TokenInterceptor) ya manda X-Requested-With en /auth/refresh y /auth/logout:
+  # sin este header se rechaza con 403 (otro sitio ya no puede forzar un logout ni un refresh).
+  exigir-header-refresh: true
   cors:
     # Solo dominios HTTPS de produccion. Se quitaron los dos origenes HTTP planos de desarrollo
     # (localhost:4200 y 51.178.29.99:30001) y el de QA, que antes quedaban habilitados aqui
     # porque la lista estaba hardcodeada en SecurityConfig y era la misma para todos los perfiles.
-    origenes-permitidos: https://shop.novedades-jade.com.mx,https://front.novedades-jade.com.mx,https://novedades-jade.com.mx,https://www.novedades-jade.com.mx,https://venta-bolsas-online.netlify.app
+    origenes-permitidos: https://shop.novedades-jade.com.mx,https://front.novedades-jade.com.mx,https://novedades-jade.com.mx,https://www.novedades-jade.com.mx
 
 cookie:
   secure: true
@@ -95,10 +98,10 @@ app:
 
 springdoc:
   swagger-ui:
-    enabled: true
+    enabled: false
     path: /swagger-ui.html
   api-docs:
-    enabled: true
+    enabled: false
     path: /v3/api-docs
 
 reconciliacion:
