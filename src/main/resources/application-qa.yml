@@ -134,6 +134,22 @@ whatsapp:
   callmebot-apikey: ${WHATSAPP_APIKEY:}
   country-code: ${WHATSAPP_COUNTRY_CODE:52}
 
+  # ── API de WhatsApp de Meta (Cloud API). Todo sale de variables de entorno: NUNCA van en el código ni en el chat.
+  # Dónde se obtiene cada una: WHATSAPP_CLOUD_API.md
+  cloud:
+    phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
+    token: ${WHATSAPP_CLOUD_TOKEN:}
+    # Si la app de Meta es la misma de Facebook/Instagram, basta con FACEBOOK_APP_SECRET.
+    app-secret: ${WHATSAPP_APP_SECRET:${FACEBOOK_APP_SECRET:}}
+    verify-token: ${WHATSAPP_VERIFY_TOKEN:}
+    # Meta cambia la versión de la Graph API: confirmar la vigente en su documentación oficial.
+    api-version: ${WHATSAPP_API_VERSION:v26.0}
+    # Poner en true SOLO cuando Meta ya tenga un método de pago válido (Billing Hub) y plantillas aprobadas.
+    metodo-pago-activo: ${WHATSAPP_METODO_PAGO_ACTIVO:false}
+  bot:
+    # Cuánto se aparta el bot después de que una persona contesta (se reinicia con cada respuesta suya).
+    pausa-minutos: ${WHATSAPP_BOT_PAUSA_MINUTOS:30}
+
 facebook:
   page-id: ${FACEBOOK_PAGE_ID:}
   page-access-token: ${FACEBOOK_PAGE_ACCESS_TOKEN:}

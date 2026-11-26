@@ -10,6 +10,49 @@ Los endpoints que dicen `✅ proyecto-key (9091)` no pudieron moverse al micro (
 
 ---
 
+## 2026-11-26 — WhatsApp con la API de Meta: conversaciones, historial y contestar a mano
+
+### [BUG-KEY-47] 🆕 WhatsApp: recibir los mensajes de los clientes, que conteste el bot y poder contestarlos a mano (2026-11-26) — back listo, front pendiente
+
+Pedido del dueño: *"quiero en front la interfaz para recibir los mensajes y poder contestarlos"* (y que los clientes que escriban por WhatsApp reciban respuesta del mismo chatbot, sin perder clientes).
+
+**Antes:** WhatsApp solo se usaba para mandar tickets (CallMeBot). No había forma de recibir lo que un cliente escribía ni de contestarlo desde el sistema.
+**Ahora:** Meta manda cada mensaje al back (webhook), se guarda por número de cliente, el bot contesta con las reglas propias de WhatsApp y una persona puede tomar la conversación y contestar desde el panel. Reglas completas (ventana de 24 h, plantillas, error 131047, duplicados): `src/main/java/com/ventas/key/hexagonal/whatsapp/README.md`. Cómo se conecta con Meta: `WHATSAPP_CLOUD_API.md`. Plantillas: `WHATSAPP_PLANTILLAS.md`.
+
+**Back (todo bajo `/mis-productos`, respuesta envuelta en `ResponseGeneric`: `{ mensaje, code, data }`):**
+
+Permisos: los `GET` piden la pantalla `admin/whatsapp`; los `POST` piden además su permiso de **Editar** (Escritura). `ROLE_ADMIN` ya los tiene con la migración `migration_whatsapp_cloud.sql`; **hay que volver a entrar** después de correrla.
+
+| Método y URL | Qué hace | `data` |
+|---|---|---|
+| `GET /v1/whatsapp/conversaciones?pagina=0&size=30` | Lista de conversaciones, la de actividad más reciente primero | `{ elementos: Conversacion[], pagina, size, total, totalPaginas }` |
+| `GET /v1/whatsapp/conversaciones/{id}` | Una conversación (para refrescar su cabecera) | `Conversacion` |
+| `GET /v1/whatsapp/conversaciones/{id}/mensajes?pagina=0&size=30` | Historial, **lo más nuevo primero** (el front lo voltea para dibujarlo) | `{ elementos: Mensaje[], pagina, size, total, totalPaginas }` |
+| `POST /v1/whatsapp/conversaciones/{id}/responder` · body `{ "texto": "…" }` | Contesta a mano (máx. 4096 caracteres). Solo con la ventana abierta. El bot se aparta 30 min | `Mensaje` |
+| `POST /v1/whatsapp/conversaciones/{id}/plantilla` · body `{ "nombre": "…", "idioma": "es_MX", "parametros": ["…"] }` | Manda una plantilla aprobada (única forma fuera de la ventana). Requiere método de pago en Meta | `Mensaje` |
+| `POST /v1/whatsapp/conversaciones/{id}/tomar` | Una persona toma la conversación: el bot no contesta hasta devolverla | `Conversacion` |
+| `POST /v1/whatsapp/conversaciones/{id}/devolver-bot` | Devuelve la conversación al bot y quita «requiere atención» | `Conversacion` |
+| `POST /v1/whatsapp/conversaciones/{id}/atendida` | Quita «requiere atención» sin contestar | `Conversacion` |
+| `GET /v1/whatsapp/plantillas` | Plantillas propuestas y si ya se pueden enviar | `{ puedeEnviarPlantillas, plantillas: [{ nombre, idioma, categoria, cuerpo, variables, pie }] }` |
+
+`Conversacion`: `{ id, telefono, nombre, ultimoMensaje, ultimaActividad, ultimoMensajeDelCliente, ventanaAbierta, ventanaCierraEn, botPausado, requiereAtencion, sinResponder }`.
+`Mensaje`: `{ id, direccion, origen, tipo, contenido, estado, motivo, codigoError, plantilla, fecha }`.
+- **Todas las fechas van en UTC, ISO-8601 con «Z»** (ej. `2026-11-26T22:00:00Z`): el front las convierte a la hora local.
+- `ventanaAbierta`/`ventanaCierraEn`: la ventana de 24 h desde el último mensaje del cliente; `ventanaCierraEn` es `null` si ya está cerrada. Con la ventana cerrada, la pantalla debe **bloquear el cuadro de texto** y ofrecer solo plantilla (si `puedeEnviarPlantillas`).
+- `direccion`: `ENTRANTE` | `SALIENTE`. `origen`: `CLIENTE` | `BOT` | `PERSONA` | `SISTEMA`. `tipo`: `text`, `image`, `template`, `audio`, …
+- `estado`: `RECIBIDO` · `ENVIADO` · `ENTREGADO` · `LEIDO` · `FALLIDO` · `BLOQUEADO_VENTANA` · `BLOQUEADO_SIN_PAGO` · `PENDIENTE_PLANTILLA`. Los tres últimos y `FALLIDO` traen `motivo` (y `codigoError` si lo dio Meta, ej. 131047): mostrarlo en la burbuja.
+- `botPausado`: una persona atiende (tomada, o contestó hace menos de 30 min). `requiereAtencion`: hay algo que revisar (el bot pasó la conversación, un mensaje no salió, o llegó algo que el bot no lee).
+- Errores: `404` conversación inexistente · `400` texto vacío o plantilla inválida (el `mensaje` dice qué) · `409` el mensaje **no se envió por una regla** (ventana de 24 h cerrada o sin método de pago; ya quedó en el historial y el cuerpo trae ese `Mensaje`) · `502` Meta rechazó el envío (queda `FALLIDO` con su motivo; **no se reintenta solo**).
+- `POST /v1/whatsapp/webhook` y `GET /v1/whatsapp/webhook` son **solo para Meta** (firmados), el front no los llama.
+
+**Front (pendiente, repo `producto_venta_online`):** pantalla nueva `admin/whatsapp` en el menú **Sistema → WhatsApp** (lista a la izquierda, chat a la derecha), con `PantallaGuard`, link en el navbar y permiso de Editar para los botones de contestar, tomar y devolver. Receta: `COMO_DAR_ALTA_PANTALLA_Y_PERMISOS.md`.
+
+**Migración:** `migration_whatsapp_cloud.sql` (tablas `whatsapp_cliente` y `whatsapp_mensaje` y la pantalla `admin/whatsapp`). Sin ella el resto del sistema sigue igual; solo falla WhatsApp.
+
+Detalle y reglas: README del dominio `hexagonal/whatsapp`.
+
+---
+
 ## 2026-11-26 — Hotfix 4: los scripts `.sql` y `openapi.yml` ya no se pueden bajar por HTTP
 
 **No hay cambio de contrato: el front no tiene que tocar nada** (se revisó `producto_venta_online`: nada pide `*.sql` ni `openapi.yml` por URL).

@@ -260,6 +260,17 @@ public class SecurityConfig {
                         // validado por firma X-Hub-Signature-256 dentro del controlador) ──────
                         .requestMatchers("/v1/redes-sociales/facebook/webhook").permitAll()
 
+                        // ── WhatsApp (API de Meta) ────────────────────────────────────────
+                        // El webhook lo llama Meta sin nuestro JWT: la protección es la firma
+                        // X-Hub-Signature-256 (WHATSAPP_APP_SECRET) que valida el controlador. Todo lo demás
+                        // de /v1/whatsapp/** es la pantalla del panel (conversaciones, historial, contestar a
+                        // mano): los GET piden la pantalla 'admin/whatsapp' y contestar, tomar o devolver al
+                        // bot piden además su permiso de Escritura. El webhook va ANTES: el primero que
+                        // coincide gana.
+                        .requestMatchers("/v1/whatsapp/webhook").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/whatsapp/**").hasAnyAuthority(pantalla("admin/whatsapp"))
+                        .requestMatchers("/v1/whatsapp/**").hasAnyAuthority(pantallaEscribir("admin/whatsapp"))
+
                         // ── Palabras clave (GET público; escritura solo ADMIN) ────────────
                         .requestMatchers(HttpMethod.GET, "/v1/palabras-clave/**").permitAll()
                         // Fase 3 de permisos (2026-09-05): "eliminar" separado del resto de
