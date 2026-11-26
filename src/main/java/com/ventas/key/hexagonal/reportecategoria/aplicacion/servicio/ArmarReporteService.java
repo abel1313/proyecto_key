@@ -52,7 +52,7 @@ public class ArmarReporteService {
                 flete = BigDecimal.ZERO;
                 sinFlete = true;
                 nuevo = margen != null;
-                if (nuevo && b.precioCompra().signum() > 0) {
+                if (nuevo && b.precioCompra().signum() > 0 && ReglasReporte.margenGuardable(margen)) {
                     nuevos.add(new NuevoCalculo(b.productoId(), b.precioCompra(), b.precioVenta(), margen));
                 }
             }
