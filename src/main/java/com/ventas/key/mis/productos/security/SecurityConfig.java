@@ -160,6 +160,17 @@ public class SecurityConfig {
                         // ── Preflight CORS ────────────────────────────────────────────────
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                        // ── Archivos de static/ que NO son del publico (hotfix 4, 2026-11-26) ─
+                        // Spring publica classpath:/static/ en /**. Ahi viven los .sql de migracion (nombres de tablas, columnas, roles y permisos
+                        // internos) y openapi.yml; el anyRequest().authenticated() del final dejaba que CUALQUIER cuenta con sesion (una clienta de
+                        // la tienda) los bajara con GET /mis-productos/migration_xxx.sql. Se niegan para todos, tambien al admin: los .sql se corren
+                        // a mano en la base, no por HTTP. Ant sobre la ruta (sin query string) y sin distinguir mayusculas. Los logos PNG se quedan.
+                        // Ojo: "/x.sql/" (con diagonal final) tambien lo servia el handler de recursos; por eso los dos patrones llevan "/**" al final.
+                        .requestMatchers(new org.springframework.security.web.util.matcher.AntPathRequestMatcher("/**/*.sql", null, false),
+                                new org.springframework.security.web.util.matcher.AntPathRequestMatcher("/**/*.sql/**", null, false),
+                                new org.springframework.security.web.util.matcher.AntPathRequestMatcher("/openapi.yml", null, false),
+                                new org.springframework.security.web.util.matcher.AntPathRequestMatcher("/openapi.yml/**", null, false)).denyAll()
+
                         // ── Documentación / herramientas externas ─────────────────────────
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         // Consulta de codigo postal: solo GET (revision de seguridad 2026-11-05: antes aceptaba cualquier metodo sin sesion).

@@ -10,6 +10,16 @@ Los endpoints que dicen `✅ proyecto-key (9091)` no pudieron moverse al micro (
 
 ---
 
+## 2026-11-26 — Hotfix 4: los scripts `.sql` y `openapi.yml` ya no se pueden bajar por HTTP
+
+**No hay cambio de contrato: el front no tiene que tocar nada** (se revisó `producto_venta_online`: nada pide `*.sql` ni `openapi.yml` por URL).
+
+- **Antes:** `GET /mis-productos/migration_xxx.sql` (y cualquier otro `.sql` de `static/`) y `GET /mis-productos/openapi.yml` los devolvía con **200** a cualquier cuenta con sesión, incluida una clienta de la tienda (`ROLE_USUARIO`): se veían nombres de tablas, columnas, roles y permisos internos. Sin sesión daba 401.
+- **Ahora:** esas rutas responden **401** sin sesión y **403** con sesión, incluso al administrador. No cambia ninguna otra ruta.
+- Los logos `/mis-productos/imagenes/logo_fondo.png` y `logo_sin_fondo.png` se quedan igual.
+
+---
+
 ## 2026-11-26 — Hotfix 3: reportes atorados y margen negativo (reporte por categoría / Precios calculados)
 
 - `POST /v1/reportes/ventas/por-categoria/generar`: **nuevo 503** (`mensaje`: «No se pudo armar el reporte en este momento. Intenta de nuevo en un minuto.») cuando el reporte no se pudo ni poner en cola; esa fila queda en `ERROR` (antes quedaba `PENDIENTE` para siempre). **Cambio de código:** antes, si el pool de reportes estaba lleno, esa misma situación respondía **429** «Hay muchos reportes en cola»; ahora responde **503**. El front de prod muestra `e.error?.mensaje` para cualquier código, así que se ve bien. El **429** («Ya tienes 3 reportes armándose») ahora solo cuenta los pedidos hace menos de 15 minutos.

@@ -747,3 +747,17 @@ Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) 
 - [ ] `margenGuardable`: 0 → sí; 49.99 → sí; 99.99 → sí; -0.01 → no; 100 → no; null → no. Reporte con producto compra 100 / venta 80 (margen -25) → no guarda cálculo; compra 50 / venta 100 → guarda con 50.00; compra 10 / venta 10 → guarda con 0.00.
 - [ ] Con una fila de `producto_calculo_precio` con margen -20 (última de su producto): `GET /v1/calculos-precio` → 200 con los demás productos y `totalRegistros` sin contarla; `.../producto/{id}/ultimo` → 204; `.../producto/{id}` → 200 sin esa fila.
 **Corrida a mano el 2026-11-26 contra MySQL 8 local (prueba temporal ya borrada):** todos los casos de arriba salieron como se espera, excepto que `margenGuardable` se probó solo por sus efectos en el reporte.
+
+## Hotfix 4 de protección a producción (2026-11-26): scripts .sql en static/
+**Dónde:** `SecurityConfig.filterChain`, matcher `denyAll` justo después del preflight CORS (patrones Ant `/**/*.sql`, `/**/*.sql/**`, `/openapi.yml` y `/openapi.yml/**`, sin distinguir mayúsculas). Los archivos siguen en `src/main/resources/static/` (los tests `Migracion*Test` los leen del disco, no del classpath).
+**Tipo:** prueba de contexto completo con servidor real (`@SpringBootTest(RANDOM_PORT)` + cliente HTTP, JWT real con `JwtUtil`, MySQL y Redis locales); se usa servidor real porque MockMvc no reproduce lo que hacen Tomcat y el firewall de Spring con rutas como `%2f` o `%00` (con MockMvc el archivo sí se servía antes del arreglo, medido: 200 con el SQL).
+**Antes (medido el 2026-11-26):** `GET /mis-productos/migration_pedido_datos_visibles.sql` sin sesión → 401; con token `ROLE_USUARIO` (clienta) → **200 con el SQL**; con `ROLE_ADMIN` → 200. Igual con `migration_campana.sql`, `openapi.yml` (200) y con `/%6Digration_campana.sql` (200).
+**Debe comprobar:**
+- [ ] Sin sesión: `GET /mis-productos/migration_pedido_datos_visibles.sql`, `/migration_campana.sql`, `/openapi.yml` → 401, sin contenido del archivo.
+- [ ] Clienta (`ROLE_USUARIO`): los mismos → 403 «No tiene permisos para acceder a este recurso», sin contenido.
+- [ ] Admin (`ROLE_ADMIN`): los mismos → 403 (los .sql no se bajan por HTTP ni el admin; se corren a mano en la base).
+- [ ] Variantes que antes colaban o podían colar: `/migration_campana.SQL` (mayúsculas), `/migration_campana.sql?x=1`, `/migration_campana.sql/` (diagonal final: **servía el archivo con 200** hasta agregar `/**` al patrón), `/sub/dir/migration_campana.sql`, `/%6Digration_campana.sql` (codificado), `/OPENAPI.YML`, `/openapi.yml/` → 401 sin sesión y 403 con sesión. `/imagenes/../x.sql`, `//x.sql` y `/;x/x.sql` los rechaza el firewall de Spring con 400; `%00` y `%2f` los rechaza Tomcat con 400 (página HTML).
+- [ ] Lo demás no cambió, con y sin sesión: `GET /mis-productos/imagenes/logo_fondo.png` y `logo_sin_fondo.png` → igual que antes (con sesión 200 `image/png`; sin sesión 401, ya era así), `GET /v1/productos/obtenerProductos` y `/v1/negocio/estado` → 200 públicos, `/swagger-ui/index.html` y `/actuator/health` → 200.
+- [ ] `AutorizacionPorEndpointTest` (149) y las 5 `Migracion*Test` siguen en verde.
+- [ ] En prod, tras el deploy, con nginx delante: `curl -i https://<dominio>/mis-productos/migration_campana.sql` → 401 (sin sesión) y con token de una clienta → 403.
+**Corrida a mano el 2026-11-26 (prueba temporal ya borrada):** todo lo anterior salió como se espera, salvo la última casilla (nginx real, no se pudo probar desde el contenedor).
