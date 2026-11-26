@@ -1,5 +1,7 @@
 # Pruebas QA — Campañas: el flujo completo (QR → cliente, modal, meta por fechas, ticket) — 2026-11-08
 
+> **Última revisión contra el código: 2026-11-26.** Regla vigente de la meta (cambió después de escribir esta guía: `b253a2e4` del 2026-11-08 quitó el ticket en curso y `ae9b2e14` del 2026-11-10 lo devolvió solo en parte): la meta suma **lo ya pagado** entre el inicio y el fin de la campaña (Contado y abonos de Apartado / Ir pagando, juguetes incluidos; baja con devoluciones y no cuenta abonos de más, `1edd47f1`) **más** los artículos de la compra en curso que **NO son juguetes de la campaña**, y **solo si la venta es Contado**. Los juguetes de la compra en curso nunca cuentan para calificarse a sí mismos; en Apartado e Ir pagando la compra en curso no suma nada.
+
 **Antes de empezar (en este orden):**
 1. En QA, correr `migration_campana_persona_cliente.sql` (agrega 2 columnas a `campana_persona`; solo agrega). **Hazlo ANTES de que termine el deploy del back**: sin ella la campaña se apaga sola y las ventas siguen, pero no hay códigos.
 2. Esperar el deploy del back y del front de QA, **volver a entrar** y tener una campaña **Vigente** (Catálogo → Campañas) con meta $1,500, fecha de inicio **hoy o antes**, y 2 juguetes con precio de campaña.
@@ -12,7 +14,7 @@
 | 2 | Receptor de códigos del celular | **Buscador de códigos de barras** de Venta directa, Buscar, Agregar y Actualizar producto | todo código va al buscador | los códigos de barras **siguen yendo al buscador igual**; solo un UUID va al campo de campaña |
 | 3 | Página del celular (`qr_code`) | Escanear códigos de barras con el celular | solo barras | barras **igual**; además lee QR |
 | 4 | Ticket (Venta directa, Mis pedidos, detalle, abonos) | Imprimir / reenviar tickets | sin precio por pieza | **sin descuento sale igual**; con precio de campaña, normal tachado + etiqueta |
-| 5 | Meta | «Verificar» y reporte | solo Contado ligado, sin juguetes | todo lo pagado entre inicio y fin, juguetes incluidos |
+| 5 | Meta | «Verificar» y reporte | solo Contado ligado, sin juguetes | todo lo pagado entre inicio y fin, juguetes incluidos; y, en una venta de Contado, también lo que no es juguete de la compra en curso |
 
 ## 🔴 PRUEBA PENDIENTE — 1 Nada se rompió (sin campaña)
 Apaga la campaña y haz una Venta directa normal **sin cliente** → Cobrar.
@@ -27,10 +29,10 @@ Llena nombre, tu correo y teléfono, **marca la casilla** y **Guardar cliente** 
 
 ## 🔴 PRUEBA PENDIENTE — 2b El código sale en cada compra
 Con **el mismo correo** de la prueba 2, haz otra compra con la casilla de privacidad marcada.
-**✅** Llega otro correo «Tu código de cliente», con «Aquí está tu código personal de cliente de nuevo», el **mismo QR** y el adjunto `codigo-jade.png`; abajo dice «Versión de prueba: QR-2» (si no sale, el deploy no ha terminado). En Campañas → **Reporte** cada persona tiene el botón **Ver QR**.
+**✅** Llega otro correo «Tu código de cliente», con «Aquí está tu código personal de cliente de nuevo», el **mismo QR** y el adjunto `codigo-jade.png`. En Campañas → **Reporte** cada persona tiene el botón **Ver QR**.
 **⛔** Que no llegue correo en la segunda compra.
 
-**Un solo correo:** con un cliente **sin registro** y correo, en **Contado**, llega **UN** correo «Tu compra y tu código de cliente» (arriba el código de «Agregar mi compra», abajo el QR de la campaña, «Versión de prueba: QR-3»). **⛔** Que lleguen dos.
+**Un solo correo:** con un cliente **sin registro** y correo, en **Contado**, llega **UN** correo «Tu compra y tu código de cliente» (arriba el código de «Agregar mi compra», abajo el QR de la campaña). **⛔** Que lleguen dos.
 
 ## 🔴 PRUEBA PENDIENTE — 3 «No registrar»
 Otra venta sin cliente → Cobrar → **No registrar** (o Sí → «No registrar y cobrar»).
@@ -38,12 +40,12 @@ Otra venta sin cliente → Cobrar → **No registrar** (o Sí → «No registrar
 
 ## 🔴 PRUEBA PENDIENTE — 4 Segunda visita: el QR llena al cliente
 Venta directa nueva, **sin elegir cliente**, con 2 juguetes y bolsas. En el bloque 🎁 pega el UUID (o 🖼️ sube la **captura/imagen del QR** que te mandaste por WhatsApp o Facebook, o 📱 con el celular, o escribe/escanea con lector USB).
-**✅** Se busca solo: aparece el **cliente de la primera compra** como seleccionado, y «✓ Es de … · lleva $X de $1,500». Si ya lleva lo de la meta (contado de hoy cuenta): «ya es recurrente» y los juguetes bajan a precio de campaña, **con su precio por pieza («c/u»)**.
+**✅** Se busca solo: aparece el **cliente de la primera compra** como seleccionado, y «✓ Es de … · lleva $X de $1,500». Si ya lleva lo de la meta (lo pagado antes, más lo que no son juguetes de la compra de hoy si es Contado): «ya es recurrente» y los juguetes bajan a precio de campaña, **con su precio por pieza («c/u»)**.
 **⛔** Que no se llene el cliente; que no baje el precio estando recurrente.
 
 ## 🔴 PRUEBA PENDIENTE — 5 La meta (por fechas y lo pagado)
 Con ese cliente: (a) una compra de **Contado** de $900 hoy; (b) un **Apartado** con un abono de $300; (c) un pedido **cancelado** de $500; (d) con la fecha de inicio de la campaña **mañana**, una compra de hoy.
-**✅** Pulsa «Buscar código» y revisa «lleva $X»: suma el Contado + lo **abonado** del Apartado; **no** suma el cancelado ni lo anterior a la fecha de inicio. En una venta nueva en **Contado**, el ticket de hoy se suma para decidir; en **Apartado** no.
+**✅** Pulsa «Buscar código» y revisa «lleva $X»: suma el Contado + lo **abonado** del Apartado; **no** suma el cancelado ni lo anterior a la fecha de inicio. En una venta nueva en **Contado**, se suman para decidir los artículos de hoy que **no son juguetes de la campaña** (los juguetes no cuentan); en **Apartado** e **Ir pagando** la compra de hoy no suma nada.
 **⛔** Que sume lo cancelado o lo de antes del inicio.
 
 ## 🔴 PRUEBA PENDIENTE — 6 Casilla «Cliente recurrente» sin QR
