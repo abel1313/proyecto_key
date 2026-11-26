@@ -5,6 +5,7 @@ import com.ventas.key.hexagonal.reportecategoria.dominio.modelo.FiltroReporte;
 import com.ventas.key.hexagonal.reportecategoria.dominio.modelo.ReporteCalculado;
 import com.ventas.key.hexagonal.reportecategoria.dominio.modelo.VistaReporte;
 import com.ventas.key.hexagonal.reportecategoria.infraestructura.config.ProcesadorReporteAsincrono;
+import com.ventas.key.hexagonal.reportecategoria.infraestructura.config.ReporteLimpiezaScheduler;
 import com.ventas.key.hexagonal.reportecategoria.infraestructura.dto.FilaReporteResponse;
 import com.ventas.key.hexagonal.reportecategoria.infraestructura.dto.GenerarReporteRequest;
 import com.ventas.key.hexagonal.reportecategoria.infraestructura.dto.PaginaReporteResponse;
@@ -14,6 +15,7 @@ import com.ventas.key.mis.productos.entity.ReporteGeneradoEntidad;
 import com.ventas.key.mis.productos.models.ResponseGeneric;
 import com.ventas.key.mis.productos.repository.IReporteGeneradoRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
@@ -41,6 +43,7 @@ import java.util.List;
  * (SecurityConfig: /v1/reportes/ventas/por-categoria/**); pendiente pasarlo a una pantalla/acción configurable del menú.
  * Contrato en CAMBIOS_FRONT.md.
  */
+@Slf4j
 @RestController
 @RequestMapping("/v1/reportes/ventas/por-categoria")
 @RequiredArgsConstructor
@@ -88,10 +91,12 @@ public class ReporteCategoriaController {
         if (!formato.equals("XLSX") && !formato.equals("PDF")) throw new IllegalArgumentException("El formato debe ser XLSX o PDF.");
         String usuario = AuthenticationUtils.currentUsuarioOpt().map(u -> u.getUsername()).orElse("admin");
 
-        if (repo.countByUsuarioAndEstadoIn(usuario, List.of("PENDIENTE", "GENERANDO")) >= MAX_EN_CURSO) {
+        LocalDateTime ahora = LocalDateTime.now();
+        // Solo cuentan los recientes: uno atorado (pod reiniciado, tarea perdida) no puede bloquear al usuario hasta que venza.
+        if (repo.countByUsuarioAndEstadoInAndCreadoAfter(usuario, List.of("PENDIENTE", "GENERANDO"),
+                ahora.minusMinutes(ReporteLimpiezaScheduler.MINUTOS_MAXIMOS_EN_CURSO)) >= MAX_EN_CURSO) {
             throw new IllegalStateException("Ya tienes " + MAX_EN_CURSO + " reportes armándose. Espera a que termine alguno.");
         }
-        LocalDateTime ahora = LocalDateTime.now();
         ReporteGeneradoEntidad e = new ReporteGeneradoEntidad();
         e.setUsuario(usuario);
         e.setEstado("PENDIENTE");
@@ -102,7 +107,15 @@ public class ReporteCategoriaController {
         e = repo.save(e);
 
         String nombre = "reporte-por-categoria-" + filtro.desde() + "_" + filtro.hasta() + (formato.equals("PDF") ? ".pdf" : ".xlsx");
-        procesador.procesar(e.getId(), filtro, formato, usuario, nombre);
+        try {
+            procesador.procesar(e.getId(), filtro, formato, usuario, nombre);
+        } catch (RuntimeException ex) {
+            // No se pudo ni encolar (pool lleno u otro fallo): la fila no se queda PENDIENTE para siempre.
+            log.error("No se pudo encolar el reporte {}: {}", e.getId(), ex.getMessage(), ex);
+            repo.marcarErrorSiPendiente(e.getId(), "No se pudo poner en cola el reporte.", LocalDateTime.now());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ResponseGeneric<>((ReporteGeneradoResponse) null,
+                    "No se pudo armar el reporte en este momento. Intenta de nuevo en un minuto."));
+        }
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(new ResponseGeneric<>(
                 new ReporteGeneradoResponse(e.getId(), e.getEstado(), formato, e.getDescripcion(), null, null, e.getCreado(), null, e.getExpira(), 0),
                 "El reporte se está armando. Avisa cuando esté listo."));

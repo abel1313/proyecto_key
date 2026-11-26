@@ -24,12 +24,14 @@ public interface IProductoCalculoPrecioRepository extends JpaRepository<Producto
             + "and c.id = (select max(x.id) from ProductoCalculoPrecioEntidad x where x.productoId = c.productoId) "
             + "and lower(p.nombre) like lower(concat('%', :nombre, '%')) "
             + "and c.fecha >= :desde and c.fecha < :hasta "
+            + "and c.margenPct >= 0 and c.margenPct < 100 "
             + "order by c.fecha desc, c.id desc",
             countQuery = "select count(c) from ProductoCalculoPrecioEntidad c, Producto p "
             + "where p.id = c.productoId "
             + "and c.id = (select max(x.id) from ProductoCalculoPrecioEntidad x where x.productoId = c.productoId) "
             + "and lower(p.nombre) like lower(concat('%', :nombre, '%')) "
-            + "and c.fecha >= :desde and c.fecha < :hasta")
+            + "and c.fecha >= :desde and c.fecha < :hasta "
+            + "and c.margenPct >= 0 and c.margenPct < 100")
     Page<Object[]> ultimosPorProducto(@Param("nombre") String nombre, @Param("desde") LocalDateTime desde,
                                       @Param("hasta") LocalDateTime hasta, Pageable pageable);
 

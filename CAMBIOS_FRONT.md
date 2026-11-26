@@ -10,6 +10,14 @@ Los endpoints que dicen `✅ proyecto-key (9091)` no pudieron moverse al micro (
 
 ---
 
+## 2026-11-26 — Hotfix 3: reportes atorados y margen negativo (reporte por categoría / Precios calculados)
+
+- `POST /v1/reportes/ventas/por-categoria/generar`: **nuevo 503** (`mensaje`: «No se pudo armar el reporte en este momento. Intenta de nuevo en un minuto.») cuando el reporte no se pudo ni poner en cola; esa fila queda en `ERROR` (antes quedaba `PENDIENTE` para siempre). **Cambio de código:** antes, si el pool de reportes estaba lleno, esa misma situación respondía **429** «Hay muchos reportes en cola»; ahora responde **503**. El front de prod muestra `e.error?.mensaje` para cualquier código, así que se ve bien. El **429** («Ya tienes 3 reportes armándose») ahora solo cuenta los pedidos hace menos de 15 minutos.
+- Un reporte `PENDIENTE`/`GENERANDO` de más de 15 minutos pasa solo a `ERROR` (`error`: «El reporte se interrumpió (el servidor se reinició o tardó demasiado). Vuelve a pedirlo.») en máximo ~5 minutos. El front ya maneja `ERROR`; no cambia el contrato.
+- `GET /v1/calculos-precio`, `GET /v1/calculos-precio/producto/{id}/ultimo` y `GET /v1/calculos-precio/producto/{id}`: **antes** una fila con margen fuera de 0–100 % tumbaba la respuesta con 400 «El margen tiene que estar entre 0 y menos de 100 %». **Ahora** esa fila se omite (el listado trae las demás; `ultimo` responde 204 si la última es esa). El reporte generado ya no guarda cálculos cuando la venta está por debajo del costo.
+
+---
+
 ## ⚠️ MIGRACIÓN DE VERSIONES DE URL — 2026-06-07 (acción requerida en el front)
 
 Se normalizó el versionado de URLs en **ambos** backends (proyecto-key 9091 y micro_imagenes 9096) para que todo use `/v1/` como versión estable. Resumen para el front:

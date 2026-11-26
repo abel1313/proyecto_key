@@ -19,6 +19,11 @@ public final class ReglasReporte {
         return m.max(TOPE_PCT.negate()).min(TOPE_PCT);
     }
 
+    /** Un margen se puede guardar como cálculo de precio solo entre 0 y menos de 100 % (regla R3 de calculoprecio); una venta bajo el costo da negativo. */
+    public static boolean margenGuardable(BigDecimal margen) {
+        return margen != null && margen.signum() >= 0 && margen.compareTo(CIEN) < 0;
+    }
+
     /** Ganancia ÷ total vendido × 100. null si no se vendió nada. */
     public static BigDecimal margenReal(BigDecimal ganancia, BigDecimal total) {
         if (ganancia == null || total == null || total.signum() <= 0) return null;
