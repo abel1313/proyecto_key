@@ -16,6 +16,28 @@ Formato de cada entrada:
 
 ---
 
+### 2026-11-26 — WhatsApp con la API de Meta (webhook, ventana de 24 h, bot y contestar a mano)
+**Dónde:** `hexagonal/whatsapp` → `VentanaDe24Horas`, `PoliticaDeEnvio`, `PoliticaDeRespuestaWhatsapp`, `EnvioConVentanaService`, `RecibirMensajeWhatsappService`, `AdministrarConversacionesService`, `PlantillaWhatsapp`, `EstadoMensaje`; `WhatsappPayloadParser`, `FirmaDeMeta`, `WhatsappProcesador`, `WhatsappWebhookController`, `WhatsappCloudClient`; `ClientesWhatsappJpaAdapter`, `MensajesWhatsappJpaAdapter`; `ChatbotWhatsappService`; `SecurityConfig` (`/v1/whatsapp/**`)
+**Tipo:** unitario (dominio y servicios con puertos simulados) · MySQL (SQL nativo y llave única) · controller (URL y status) · prueba real contra Meta
+**Ya se comprobó el 2026-11-26 con programas desechables (no se dejaron en el repo):** dominio y servicios con puertos falsos en memoria, adaptadores JPA reales sobre H2 con la JVM en zona horaria de México, firma y lectura de un payload de ejemplo, y la migración dos veces en H2. **No** se probó contra MySQL real, ni con la aplicación completa arrancada, ni contra Meta de verdad.
+**Debe comprobar:**
+- [ ] Ventana: 23 h 59 min desde el último mensaje del cliente → se puede enviar libre; 24 h 00 min exactas → no; sin ningún mensaje entrante → no
+- [ ] La marca del último mensaje entrante es la hora que manda Meta (`timestamp` del webhook), no la de proceso; un mensaje viejo que llega después no la mueve hacia atrás
+- [ ] Mensaje entrante con más de 24 h de antigüedad → no sale mensaje libre, queda `PENDIENTE_PLANTILLA`, la conversación pide atención y **no se consulta a la IA**
+- [ ] El bot tarda y la ventana se cierra mientras piensa → la respuesta no sale; queda `PENDIENTE_PLANTILLA` con el borrador
+- [ ] Contestar a mano con la ventana cerrada → 409, no se llama a Meta, queda `BLOQUEADO_VENTANA` con el motivo; si el cliente vuelve a escribir (hora 25 o después) → se puede contestar libre otra vez
+- [ ] Plantilla sin `WHATSAPP_METODO_PAGO_ACTIVO` → 409 `BLOQUEADO_SIN_PAGO`, no se llama a Meta; con él en `true` y fuera de la ventana → sale la plantilla
+- [ ] Meta responde 400 con error 131047 al enviar → `FALLIDO` con código 131047, **un solo intento** (sin reintentos), la conversación pide atención; igual si llega como `statuses: failed` por el webhook
+- [ ] Un estado nunca retrocede (`read` antes de `delivered` no baja de LEIDO; un `FALLIDO` no vuelve a otro) y un aviso de un id desconocido se ignora
+- [ ] El mismo `wamid` dos veces (también dos peticiones simultáneas) → un solo mensaje guardado y **una sola respuesta** (en MySQL real: la llave única `uk_whatsapp_mensaje_wa_id`)
+- [ ] Webhook: firma buena → 200; firma mala, cuerpo alterado, sin cabecera o sin `WHATSAPP_APP_SECRET` → 403; cola llena → 503; cuerpo ilegible con firma buena → 200; `GET` de verificación devuelve el `challenge` solo con el verify token correcto
+- [ ] Payload: reacciones y avisos del sistema se ignoran; botón o lista se leen como texto; foto, audio o sticker → no van a la IA, se saluda y pasa a una persona; eventos de otro `phone_number_id` u `object` distinto de WhatsApp se ignoran
+- [ ] Bot: se presenta solo en el primer mensaje; `##HUMANO##`/`##ESCALAR##` → saludo limpio (sin marcas) y la conversación pasa a una persona; si menciona algo interno (qué IA es, código de barras, existencias exactas) → no se manda; un «Hola» pelón se completa; el hilo que recibe la IA trae lo que contestó una persona marcado como «(persona del negocio)»
+- [ ] Persona atiende: «Tomar» apaga el bot indefinidamente, contestar a mano lo aparta 30 min (cada respuesta reinicia), «Devolver al bot» lo reactiva; con el bot apartado el mensaje del cliente se guarda y marca la conversación
+- [ ] Permisos: sin la pantalla `admin/whatsapp` → 403 en los `GET`; con la pantalla pero sin Editar → 403 en los `POST`; el webhook es público y no pide JWT
+- [ ] Fechas en UTC sin importar la zona del servidor; texto con emojis se guarda y se lee intacto (tablas `utf8mb4`)
+- [ ] **Con Meta de verdad (QA):** verificación del webhook, mensaje real entrante, respuesta del bot, aviso `delivered`/`read`, número mexicano (con y sin el «1» después del 52), y un mensaje libre fuera de la ventana para ver el 131047 real
+
 ### 2026-11-26 — Dividir un pedido: pasar un artículo (o parte de sus piezas) a otro cliente
 **Dónde:** `hexagonal/pedidoarticulo` → `DividirPedidoService.pasarArticuloACliente`, `DivisionDePedidoJpaAdapter` (`bloquear`, `crearPedidoParaCliente`), `RepreciarPorCantidadAdapter.repreciar`; endpoint `POST /v1/pedidos/{pedidoId}/articulos/{detalleId}/pasar-a-cliente` (solo ADMIN en `SecurityConfig`). Ya está en producción (`fca014bf`; en `main` sin la revisión de cobro con tarjeta, `e4c4996c`).
 **Tipo:** unitario (servicio con puertos simulados) + JPA (H2) + controller (URL y status)
