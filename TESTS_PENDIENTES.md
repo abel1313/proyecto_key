@@ -739,3 +739,14 @@ Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) 
 - `GET /v1/redes-sociales/facebook/webhook?hub.mode=subscribe&hub.verify_token=...&hub.challenge=x` con `FACEBOOK_WEBHOOK_VERIFY_TOKEN` vacío → 403 (ya era así); con token correcto → devuelve el challenge.
 - En prod, tras el deploy: `kubectl exec ... sh -c 'echo ${#FACEBOOK_APP_SECRET}'` > 0, y comentar en una publicación de prueba confirma que el bot sigue contestando.
 **Bajado a dev/qa el 2026-11-26** con la versión de `main` (conflictos resueltos a su favor): el simulador de pago se borró también en dev/qa y el webhook de Facebook ya no acepta sin firma en ningún perfil (se quitó `facebook.permitir-sin-firma`).
+
+## Hotfix 3 de protección a producción (2026-11-26): reportes atorados y margen negativo
+**Dónde:** `ReporteCategoriaController.generar` (límite de 3 solo con reportes de menos de 15 min; si `procesador.procesar` lanza, fila a ERROR + 503), `ReporteLimpiezaScheduler.marcarAtorados` (cada 5 min, `MINUTOS_MAXIMOS_EN_CURSO = 15`), `IReporteGeneradoRepository` (`countByUsuarioAndEstadoInAndCreadoAfter`, `marcarErrorLosAtorados`, `marcarErrorSiPendiente`), `ArmarReporteService` + `ReglasReporte.margenGuardable`, `CalculosPrecioJpaAdapter` (omite filas inválidas) y `IProductoCalculoPrecioRepository.ultimosPorProducto` (filtra margen fuera de 0–100).
+**Tipo:** integración con MySQL (JPQL con UPDATE y conteo por fecha) + unitario (`margenGuardable`) + controller.
+**Debe comprobar:**
+- [ ] Usuario con 3 filas PENDIENTE/GENERANDO de hace 30, 40 y 600 min pide un reporte → 202. Con 3 filas de hace 1, 5 y 14 min → 429 «Ya tienes 3 reportes armándose».
+- [ ] `procesar` lanza `TaskRejectedException` → respuesta 503 y la fila queda `ERROR` con error «No se pudo poner en cola el reporte.» (no PENDIENTE).
+- [ ] `marcarAtorados` con filas PENDIENTE de 30 min y GENERANDO de 20 min → ERROR; PENDIENTE de 3 min y GENERANDO de 14 min → no cambian; LISTO y ERROR viejos → no cambian.
+- [ ] `margenGuardable`: 0 → sí; 49.99 → sí; 99.99 → sí; -0.01 → no; 100 → no; null → no. Reporte con producto compra 100 / venta 80 (margen -25) → no guarda cálculo; compra 50 / venta 100 → guarda con 50.00; compra 10 / venta 10 → guarda con 0.00.
+- [ ] Con una fila de `producto_calculo_precio` con margen -20 (última de su producto): `GET /v1/calculos-precio` → 200 con los demás productos y `totalRegistros` sin contarla; `.../producto/{id}/ultimo` → 204; `.../producto/{id}` → 200 sin esa fila.
+**Corrida a mano el 2026-11-26 contra MySQL 8 local (prueba temporal ya borrada):** todos los casos de arriba salieron como se espera, excepto que `margenGuardable` se probó solo por sus efectos en el reporte.
