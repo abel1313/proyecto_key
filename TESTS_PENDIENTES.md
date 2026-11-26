@@ -7,6 +7,58 @@ el día que se decida. Lo más nuevo va arriba.
 Formato de cada entrada:
 
 ```
+### AAAA-MM-DD — Qué se hizo
+**Dónde:** clase.metodo() / endpoint
+**Tipo:** unitario (dominio/servicio con puertos simulados) · MySQL (SQL nativo) · controller (URL y status)
+**Debe comprobar:**
+- [ ] caso → resultado esperado
+```
+
+---
+
+### 2026-11-26 — Dividir un pedido: pasar un artículo (o parte de sus piezas) a otro cliente
+**Dónde:** `hexagonal/pedidoarticulo` → `DividirPedidoService.pasarArticuloACliente`, `DivisionDePedidoJpaAdapter` (`bloquear`, `crearPedidoParaCliente`), `RepreciarPorCantidadAdapter.repreciar`; endpoint `POST /v1/pedidos/{pedidoId}/articulos/{detalleId}/pasar-a-cliente` (solo ADMIN en `SecurityConfig`). Ya está en producción (`fca014bf`; en `main` sin la revisión de cobro con tarjeta, `e4c4996c`).
+**Tipo:** unitario (servicio con puertos simulados) + JPA (H2) + controller (URL y status)
+**Debe comprobar:**
+- [ ] Ir pagando con 2×$100 + 1×$50 = $250 y pagado $100; pasar **1** pieza de la línea de $100 a otro cliente → el pedido original queda en **$150** (sigue Ir pagando, resta $50, conserva su abono de $100) y se crea un pedido **nuevo de $100**, a nombre del otro cliente, **sin abonos**, con la misma forma de cobro (Ir pagando) y nota «Pasado del pedido #N». El stock no cambia (las piezas no salen ni entran).
+- [ ] El mismo pedido, pero pagado **$200**, pasar 1×$100 → se rechaza (400) con «…ya pagó $200.00 y sin esas piezas el pedido quedaría en $150.00: le sobrarían $50.00…» y no se crea ningún pedido nuevo.
+- [ ] Pasar **todas** las piezas de una línea cuando el pedido tiene otras líneas → la línea se borra del original y el nuevo la lleva completa; pasar todas las piezas de la **única** línea → 400 «Es el único artículo del pedido…».
+- [ ] Con grupo de precio por cantidad (3 o más a $80, normal $100): el original con 4 piezas está a $80 = **$320**; pasar 2 piezas → el original (2 piezas) vuelve a **$100 c/u = $200** y el nuevo (2 piezas) también queda a **$100 c/u = $200**: el total entre los dos sube de $320 a **$400**. Con pagado $150 el cambio se permite (la primera validación usa el precio de antes: $320 − 2×$80 = $160 ≥ $150). Con pagado $200 se rechaza (160 < 200). **Duda para el dueño: ¿está bien que al partir el pedido se pierda el precio de grupo y el total suba?**
+- [ ] Rechazos (400 con mensaje): línea con precio de **campaña**; línea de un **combo** (promoción); pedido **en grupo** unido (hay que separarlo antes); destino igual al **mismo cliente** o que no existe; cantidad < 1 o mayor a la de la línea; pedido ya Pagado / Contado / cancelado / entregado-cerrado; (solo en dev/qa, aún no en `main`) pedido con cobro con tarjeta en proceso.
+- [ ] Todo o nada: si falla una validación o el re-cálculo, no queda el pedido nuevo (una sola transacción).
+- [ ] Sin sesión → 401; con un rol que no es administrador → 403.
+
+### 2026-11-26 — Cambiar solo el precio de un artículo del pedido (administrador)
+**Dónde:** `EditarArticulosService.cambiarPrecio`, `PedidoArticuloController` (`PUT /v1/pedidos/{pedidoId}/articulos/{detalleId}/precio`), `RepreciarPorCantidadAdapter` (la línea con precio puesto a mano no se vuelve a repreciar), `AbonoServiceImpl.ajustarTrasEditarArticulos`. En producción desde `f26af5f6` / `900d2b8b`.
+**Tipo:** unitario (servicio) + JPA/MySQL (re-cálculo, venta al liquidarse) + controller
+**Debe comprobar:**
+- [ ] Ir pagando con total **$500** y pagado **$300**; una línea de 2×$100 cambia a **$50** c/u → total **$400**, resta **$100**; sigue Ir pagando.
+- [ ] Si el nuevo precio deja el total **por debajo de lo ya pagado** (ej. pagado $300 y total que bajaría a $250) → **400** «El cliente ya pago $300.00 y con ese precio el pedido quedaria en $250.00: le sobrarian $50.00…» (así, sin acentos, en el código). El back NO permite dejar saldo a favor: lo rechaza.
+- [ ] Si el total queda **igual** a lo pagado (ej. pagado $300 y total $300) → el pedido queda **Pagado** y se crea su venta; las piezas se ligan a su viaje de compra (si hay) y cada línea guarda su `tipo_precio`: una línea con precio puesto a mano sale `OTRO` (si el precio puesto coincide justo con el normal o la rebaja del catálogo, sale `VENTA` / `REBAJA`).
+- [ ] Pedido Contado, Pendiente o Pagado → 400 «El precio solo se puede cambiar en un pedido en Apartado o Ir pagando…»; pedido cancelado o entregado → 400 «El pedido N ya se canceló / ya se entregó: no se pueden editar sus articulos».
+- [ ] Precio **0** o negativo → 400 «El precio tiene que ser mayor a 0»; **1,000,001** → 400 «Ese precio es demasiado grande…» (el tope es 1,000,000); el **mismo** precio que ya tiene la línea → 400 «La linea ya tiene ese precio»; línea de un combo → 400.
+- [ ] Una línea con precio puesto a mano **no se reprecia**: después de agregar al pedido otro artículo que dispara un grupo de precio por cantidad, esa línea sigue en el precio escrito y no se fusiona con otra línea del mismo artículo.
+- [ ] Concurrencia: un abono que entra al mismo tiempo que el cambio de precio puede hacer que se valide contra un «pagado» viejo. **`cambiarPrecio` no bloquea la fila del pedido (al 2026-11-26)** (sí lo hace `DividirPedidoService`); probar con dos peticiones simultáneas y, si falla, bloquear el pedido igual que al dividir.
+- [ ] Sin sesión → 401; rol que no es administrador → 403.
+
+### 2026-11-26 — Rifa por boletos: elegir a qué persona se le suma un boleto (`concursanteId`)
+**Dónde:** `BoletoAgrupadoController.agregarParticipacion` (`POST /v1/rifas/{rifaId}/boletos-agrupados/participaciones?plataforma=&urlPerfil=&concursanteId=`, parámetro opcional), `GestionarBoletosService.agregarParticipacion(…, concursanteId)` y `grupoDelConcursanteOFalla`, `BoletosDeRifaPort.buscarGrupo(rifaId, perfil, concursanteId)`. Commits `ac38abeb` y `660290a8`.
+**Tipo:** unitario (servicio con puerto simulado) + controller + JPA
+**Debe comprobar:**
+- [ ] Dos personas (A y B) cargadas con el **mismo perfil** en la misma rifa; agregar un boleto con `concursanteId` = B → el boleto queda de **B** y la respuesta trae el grupo de B; A conserva sus boletos.
+- [ ] Sin el parámetro `concursanteId` → igual que antes (se suma al primer grupo que se encuentre del perfil).
+- [ ] `concursanteId` de una persona que **no tiene boletos de ese perfil** en esa rifa → **404** «Ese participante no tiene boletos cargados de '…' en … dentro de la rifa N».
+- [ ] Modo UNICA con una URL ya cargada → 409; modo REPETIDA_PERMITIDA la acepta.
+- [ ] **Posible defecto por corregir (verificado en el código el 2026-11-26, NO corregido):** `editarParticipacion` y `quitarParticipacion` siguen buscando el grupo para responder con `buscarGrupo(rifaId, perfil)` **sin** `concursanteId` (el adaptador devuelve el primero con ese perfil). Si dos personas comparten perfil, editar o quitar un boleto de B puede responder con el grupo de A. El borrado/edición del boleto sí es el correcto (va por `boletoId`); solo la **respuesta** puede traer el grupo de otra persona. Caso a comprobar cuando se corrija: quitar un boleto de B → la respuesta es el grupo de B.
+
+### 2026-11-26 — La transferencia nunca pide terminal de Mercado Pago (`formaDePagoSinTerminal`)
+**Dónde:** `VentaServiceImpl.formaDePagoSinTerminal` (estático) y donde se calcula `requiereTerminal` al vender. Commits `9e3a908c` (dev), `fa446338` (qa) y `70b6cdd1` (`main`).
+**Tipo:** unitario (el método es estático, sin Spring)
+**Debe comprobar:**
+- [ ] `formaDePagoSinTerminal("Transferencia")`, `("trasferencia")`, `(" TRANSFERENCIA ")` y `("Transferéncia")` (con acento) → **true**; `("Efectivo")` y `("EFECTIVO ")` → true.
+- [ ] `("Tarjeta")`, `("Efectivo contra entrega")`, `("")` y `(null)` → **false**. (Ojo: cualquier texto que *empiece* con «transferencia» o «trasferencia», como «Transferencia SPEI», también da true.)
+- [ ] Una venta directa pagada por transferencia **no llama a Mercado Pago** ni marca error, y la venta se guarda; una venta con tarjeta y tarifa de terminal distinta de la 3 sí lo pide.
+
 ### 2026-11-11 — Fletes: GET /v1/fletes/guardados y escenario de prueba F
 **Dónde:** `LigasManualesController.fletesGuardados` → `ConsultarFletesGuardadosService` → `FletesGuardadosJdbcAdapter` (JOIN producto + codigo_barras + último cálculo por id mayor); `PrepararPruebaService.pruebaFletes`, `EscenariosPruebaAdapter.fleteGuardado/campanaDePrueba/quitarCampanasDeLaPrueba`
 **Tipo:** MySQL (SQL nativo; el escenario usa CURDATE/DATE_ADD) · integración del generador de pruebas
@@ -21,15 +73,6 @@ Formato de cada entrada:
 **Dónde:** `ProductosControllerImpl.filtrarProductosAdmin` → `ProductosServiceImpl.filtrarProductosAdmin` → `IProductosRepository.buscarProductosAdmin` (param `sinCategoria`, también en la llave del caché)
 **Tipo:** MySQL/H2 (consulta)
 **Debe comprobar:** `sinCategoria=true` trae solo productos con `palabra_clave_id` nulo; con `categoria=X&sinCategoria=true` gana «Otros»; sin el parámetro el resultado es idéntico al de antes; el total y las páginas coinciden con la lista; cachés no se mezclan entre «Otros» y «Todas».
-
-### AAAA-MM-DD — Qué se hizo
-**Dónde:** clase.metodo() / endpoint
-**Tipo:** unitario (dominio/servicio con puertos simulados) · MySQL (SQL nativo) · controller (URL y status)
-**Debe comprobar:**
-- [ ] caso → resultado esperado
-```
-
----
 
 ### 2026-11-11 — Fletes entrega 4: reporte del viaje en Excel y PDF (back)
 **Dónde:** `hexagonal/flete/infraestructura/salida/archivo/ViajeExcelGenerador` y `ViajePdfGenerador`, `ViajeController` (`/{id}/reporte/archivo`), `ReporteDeViaje.lineas` (flete recuperado / ya ganancia por venta).
@@ -80,7 +123,7 @@ Formato de cada entrada:
 **Dónde:** `hexagonal/flete/**` (`ViajeDeCompra`, `AdministrarViajesService`, `ViajesJpaAdapter`, `ViajeController`), `CompraLote*Entidad`, `migration_flete_lote.sql`, `SecurityConfig` (`/v1/fletes/**` ADMIN).
 **Tipo:** unitario (reglas del viaje) + JPA (H2) + migración dos veces + permisos (ya en `AutorizacionPorEndpointTest`).
 **Debe comprobar:**
-- [ ] Reglas: flete 100 + gasolina 40 (cuenta) + comida 30 (no cuenta) → costo a cubrir 140; 5 piezas con flete 20 → asignado 100, falta 40, sugerido 28; con 4 piezas a 30 → asignado 120, falta 0, excedente 20.
+- [ ] Reglas: flete 100 + gasolina 40 (cuenta) + comida 30 (no cuenta) → costo a cubrir 140; 5 piezas con flete 20 → asignado 100, falta 40, sugerido 28; con 4 piezas a 30 → asignado 120, **falta 20**, excedente 0 (el costo a cubrir es 140: `faltaAsignar` = 140 − 120; el excedente solo sale si lo asignado pasa de 140, ej. 5 piezas a 30 = 150 → falta 0, excedente 10).
 - [ ] Validaciones (400 con mensaje): sin nombre, sin fecha, flete negativo, piezas < 1, gasto sin concepto o monto 0, producto repetido en el viaje.
 - [ ] Guardar → leer → actualizar (reemplaza gastos y productos) → listar → `por-producto` → eliminar (cascada: no quedan gastos ni productos).
 - [ ] Migración corre dos veces; la pantalla «Fletes» queda una sola vez, después de «Campañas», solo ROLE_ADMIN; un producto no se repite en un viaje; borrar el viaje borra sus gastos y productos.
@@ -663,20 +706,22 @@ Formato de cada entrada:
 
 ## Tests existentes que quedaron viejos
 
+**Revisión 2026-11-26:** el commit `75ccd8cc` (2026-11-02) ya actualizó `RolesControllerTest`, `CambiarTipoPedidoTest.pedidoEnGrupoNoCambia`, `VarianteStockDevolucionTest`, `VarianteStockValidacionTest` y `ChatbotComentariosTest` (se verificó leyendo el diff del commit: pasaron a 409 `ExceptionGlobal`, 422 `ExceptionStockInsuficiente`, «se cambia para todo el grupo», «Artículos habilitados correctamente.» y «Disponibilidad: sí hay»). Se marcan abajo con ✅; no se corrieron los tests en esta revisión (solo lectura).
+
 - **2026-11-08 — Campañas:** los tests de campañas escritos el 2026-11-07 (`ParticiparEnCampanaTest`, `CampanaDominioYServiciosTest`, `MigracionCampanaTest`, `MigracionCampanaPersonasTest`, `CampanasJpaTest`, `PersonasCampanaJpaTest`, `PreciosDeCampanaEnPedidoJpaTest`, `VentaDirectaCampanaTest`) se escribieron antes de que el dueño recordara la regla de no escribir tests; se dejan (no se borran) y NO se mantienen. Siguen pasando hoy, pero ya no reflejan la regla nueva de la meta (todo suma, por fechas): `ParticiparEnCampanaTest.porMeta` (usa el acumulado fijo del puerto en memoria, no el cálculo por fechas) y `PersonasCampanaJpaTest` (prueba `acumulado(int,int)` por pedidos ligados, que ya no es el que usa la meta).
 
 | Test | Rama | Desde | Por qué falla |
 |---|---|---|---|
 | `RenombreArticuloRutasTest`, `RenombreArticuloSecurityTest` | `feature/tema-jade-articulo` | 2026-10-06 | Prueban rutas `/v2/articulos/...` que esa rama del back todavía no tiene. No llegan a `dev`/`qa`. |
 | `BusquedaPedidosMysqlTest` casos r3, r7 y r11 | `dev` | 2026-10-07 | Esperaban la semántica vieja del filtro de estado (Apartado 'Pendiente' en PENDIENTE, `ENTREGADO` = contado cobrado, "espera entrega" por estado de pago). Con la entrega aparte (`pedidos.entregado`) y los bloques Pago / Entrega devuelven otras filas. Los otros 17 casos pasan contra MySQL 8 local. **2026-10-13 (R16):** con 🕓 Pendiente otra vez aparte, la línea de `PENDIENTE` de r3 ya pasa (antes fallaba ahí); r3 sigue fallando más abajo, en `PAGADO`, por la entrega aparte. Antes y después del cambio fallan los mismos 4 (r2, r3, r7, r11). |
-| `BusquedaPedidosMysqlTest` caso r2 (`r2_forma_de_cobro`) | `dev` | 2026-10-07 | Espera que "Contado" incluya los pedidos 🕓 Pendiente (900001, 900009). Desde el 2026-10-07 Pendiente es su propia forma de cobro (R2) y Contado es solo el ya cobrado. Corrida contra MySQL 8 el 2026-10-13: 16 de 20 pasan; fallan r2, r3, r7 y r11. |
-| `VarianteStockDevolucionTest.guardarConImagenes_elStockPropioNoCuentaComoDisponible`, `VarianteStockValidacionTest.pedirDeMasFalla` | `dev` | 2026-10-08 | Esperan `ExceptionDataNotFound` (404) al pedir más stock del disponible. Desde los códigos HTTP correctos es `ExceptionStockInsuficiente` (**422**). El 2026-10-14 cambió el texto del aviso (*"El modelo «…» no tiene piezas libres…"*), pero sigue terminando en *"(Disponible: X, Solicitado: Y)"*, que es lo que revisan: no fallan por el texto. |
-| `CambiarTipoPedidoTest.pedidoEnGrupoNoCambia` | `dev` | 2026-10-13 | Busca el texto viejo *"deshaz el grupo"*. Un pedido unido sigue sin poder cambiarse solo, pero ahora el mensaje es *"…su forma de cobro se cambia para todo el grupo"* (409), porque el grupo completo sí se cambia (grupopedido R20). |
-| `RolesControllerTest` (3 casos `..._devuelve400ConElMensaje`) | `dev` | 2026-10-08 | Esperaban 400 del `catch` que tenía el controller. Ese `catch` se quitó: la regla rota ahora sale por `ExceptionGlobal` como **409**. El test arma MockMvc *standalone* sin `ExceptionGlobal`, así que la excepción sale sin manejar. |
-| `ChatbotComentariosTest.conProductoLeDaAlBotLosDatosDeEseProductoConElPrecioNormalNuncaLaRebaja` | `dev` | 2026-10-14 | Espera que la ficha del producto que ve el bot diga *"2 piezas"*. Por pedido del dueño (P4 de la revisión de prompts) el bot ya no ve cuántas piezas hay: la ficha dice *"Disponibilidad: sí hay"*. El resto del test (nombre, color, precio $350, la rebaja que no se anuncia) sigue igual. Compila; solo falla esa línea. |
+| `BusquedaPedidosMysqlTest` caso r2 (`r2_forma_de_cobro`) | `dev` | 2026-10-07 | Espera que "Contado" incluya los pedidos 🕓 Pendiente (900001, 900009). Desde el 2026-10-07 Pendiente es su propia forma de cobro (R2) y Contado es solo el ya cobrado. Corrida contra MySQL 8 el 2026-10-13: 16 de 20 pasan; fallan r2, r3, r7 y r11. **Nota 2026-11-26:** este test lleva `@EnabledIfSystemProperty(spring.datasource.url = jdbc:mysql:…)`: sin MySQL **se omiten los 20 casos** (no fallan); lo de «falla» se midió solo contra MySQL 8 local y **sin verificar si r2/r3/r7/r11 siguen fallando al 2026-11-26**. |
+| `VarianteStockDevolucionTest.guardarConImagenes_elStockPropioNoCuentaComoDisponible`, `VarianteStockValidacionTest.pedirDeMasFalla` | `dev` | 2026-10-08 | ✅ **Resuelto el 2026-11-02 (commit `75ccd8cc`, «Pruebas actualizadas a los cambios deliberados», ya en `dev`): el test se actualizó al comportamiento nuevo.** Texto original: Esperan `ExceptionDataNotFound` (404) al pedir más stock del disponible. Desde los códigos HTTP correctos es `ExceptionStockInsuficiente` (**422**). El 2026-10-14 cambió el texto del aviso (*"El modelo «…» no tiene piezas libres…"*), pero sigue terminando en *"(Disponible: X, Solicitado: Y)"*, que es lo que revisan: no fallan por el texto. |
+| `CambiarTipoPedidoTest.pedidoEnGrupoNoCambia` | `dev` | 2026-10-13 | ✅ **Resuelto el 2026-11-02 (commit `75ccd8cc`, «Pruebas actualizadas a los cambios deliberados», ya en `dev`): el test se actualizó al comportamiento nuevo.** Texto original: Busca el texto viejo *"deshaz el grupo"*. Un pedido unido sigue sin poder cambiarse solo, pero ahora el mensaje es *"…su forma de cobro se cambia para todo el grupo"* (409), porque el grupo completo sí se cambia (grupopedido R20). |
+| `RolesControllerTest` (3 casos `..._devuelve400ConElMensaje`) | `dev` | 2026-10-08 | ✅ **Resuelto el 2026-11-02 (commit `75ccd8cc`, «Pruebas actualizadas a los cambios deliberados», ya en `dev`): el test se actualizó al comportamiento nuevo.** Texto original: Esperaban 400 del `catch` que tenía el controller. Ese `catch` se quitó: la regla rota ahora sale por `ExceptionGlobal` como **409**. El test arma MockMvc *standalone* sin `ExceptionGlobal`, así que la excepción sale sin manejar. |
+| `ChatbotComentariosTest.conProductoLeDaAlBotLosDatosDeEseProductoConElPrecioNormalNuncaLaRebaja` | `dev` | 2026-10-14 | ✅ **Resuelto el 2026-11-02 (commit `75ccd8cc`, «Pruebas actualizadas a los cambios deliberados», ya en `dev`): el test se actualizó al comportamiento nuevo.** Texto original: Espera que la ficha del producto que ve el bot diga *"2 piezas"*. Por pedido del dueño (P4 de la revisión de prompts) el bot ya no ve cuántas piezas hay: la ficha dice *"Disponibilidad: sí hay"*. El resto del test (nombre, color, precio $350, la rebaja que no se anuncia) sigue igual. Compila; solo falla esa línea. |
 | `BuscarPedidosControllerTest` (ajustado, **no** falla) | `dev` | 2026-10-14 | No es una falla: el controller recibe ahora el caché (`ListasDePedidosEnCache`) y el test se tuvo que tocar **solo para que compile** (se le pasa un caché apagado). Si no compila, el Dockerfile (`-DskipTests` sí compila los tests) rompe el deploy. `src/test/resources/application.properties` lleva `pedidos.lista.cache.habilitado=false` para que ningún test dependa de Redis. |
 | `BusquedaPedidosMysqlTest` casos r3, r7 y r11 | `dev` | 2026-10-07 | Esperaban la semántica vieja del filtro de estado (Apartado 'Pendiente' en PENDIENTE, `ENTREGADO` = contado cobrado, "espera entrega" por estado de pago). Con la entrega aparte (`pedidos.entregado`) y los bloques Pago / Entrega devuelven otras filas. Los otros 17 casos pasan contra MySQL 8 local. |
-| `VarianteStockDevolucionTest.habilitar_articuloViejoConStock_siAlcanzaNoSeToca` | `rename/variante-a-articulo` | 2026-10-08 | Espera "Variantes habilitadas correctamente."; con el renombrado el mensaje dice "Artículos habilitados correctamente." Solo cambia el texto, el stock se comporta igual. |
+| `VarianteStockDevolucionTest.habilitar_articuloViejoConStock_siAlcanzaNoSeToca` | `rename/variante-a-articulo` | 2026-10-08 | Espera "Variantes habilitadas correctamente."; con el renombrado el mensaje dice "Artículos habilitados correctamente." Solo cambia el texto, el stock se comporta igual. ✅ Arreglado en `75ccd8cc` (2026-11-02): ya espera «Artículos habilitados correctamente». |
 | `ArticuloAVenderTest` (`productoDeshabilitado`, `soloModelo`, `productoPrimero`) | `rename/variante-a-articulo` | 2026-10-08 | Esperan "…el producto está deshabilitado…"; ahora dice "…el **modelo** está deshabilitado…" (§1.3 de `RENOMBRE_VARIANTE_A_ARTICULO.md`). La regla no cambió. |
 | `EditarArticulosServiceTest.productoDeshabilitadoNo` | `rename/variante-a-articulo` | 2026-10-08 | Igual: espera "el producto está deshabilitado o dado de baja"; ahora "el modelo…". |
 

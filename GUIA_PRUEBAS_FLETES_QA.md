@@ -1,7 +1,7 @@
 # Guía de pruebas en QA — Fletes (viajes de compra)
 
 Para: el dueño. Escrita sin términos técnicos. Cada prueba dice **dónde**, **qué haces**, **qué debes ver** y **qué NO debe pasar**.
-Fecha: 2026-11-11. Todo lo de esta guía está en **QA y dev**. **Nada de esto está en producción todavía.**
+Fecha: 2026-11-11. Última revisión contra el código: 2026-11-26. Todo lo de esta guía está en **QA, dev y producción**: el código de Fletes (viajes, ligas con las ventas, pantalla, reporte del viaje) llegó a `main` el 2026-11-12 (commit `5915bc12`) y las tablas ya existen en prod (verificado el 2026-11-26). Las pruebas se hacen en **QA**: no las hagas en producción.
 
 ---
 
@@ -43,7 +43,7 @@ Estados de un viaje: **Abierto** (el flete aún no se cubre) → **Flete cubiert
 
 ## 2. Antes de empezar
 
-1. **Migraciones en la base de QA** (las dos ya las corriste; confírmalo):
+1. **Migraciones en la base de QA** (`migration_flete_lote.sql` y `migration_flete_venta.sql`, ya corridas el 2026-11-11; confírmalo):
    `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('compra_lote','compra_lote_gasto','compra_lote_producto','venta_detalle_lote');` → debe salir **4**.
 2. **Espera los deploys** de QA (back y front) en GitHub Actions y **vuelve a entrar** (cierra sesión y entra) para que aparezca el menú.
 3. En el navegador **Ctrl+F5**.
@@ -144,7 +144,7 @@ Estados de un viaje: **Abierto** (el flete aún no se cubre) → **Flete cubiert
 
 ### Prueba 6 — El reporte por categoría usa el flete real
 **Dónde:** Reportes → Por categoría → elige la categoría de P y las fechas de hoy → **Ver reporte**.
-**Debes ver:** en la fila de P, **Flete real (viajes)** = lo vendido de P (piezas × flete de su viaje: 3×$28 + 2×$28 + 2×$30 + …) y **Piezas sin viaje = 0**. En la tarjeta «Flete»: «Vendido $… (real $…)». Baja el **Excel** y el **PDF**: traen esas dos columnas.
+**Debes ver:** en la fila de P, **Flete real (viajes)** = **$340** (las 10 piezas vendidas × el flete de su viaje: 5 × $28 del viaje A + 5 × $40 del viaje B = $140 + $200) y **Piezas sin viaje = 0**. En la tarjeta «Flete»: «Vendido $… (real $…)». Baja el **Excel** y el **PDF**: traen esas dos columnas.
 **NO debe pasar:** que «Flete real» salga en 0 con ventas hechas después de registrar los viajes.
 
 ### Prueba 7 — El stock anterior a los viajes sale primero
@@ -196,14 +196,14 @@ Estados de un viaje: **Abierto** (el flete aún no se cubre) → **Flete cubiert
 
 ## 4.3 Prueba extra — flete guardado, campaña y «Llenar el flete que falta» (con datos listos)
 
-**Antes de empezar:** en **Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba** toca **«Preparar prueba F»**. Crea 6 productos «QA Prueba F …» (A, B y C con flete guardado de $20, $15 y $10 por pieza; D, E y F sin flete guardado), una campaña **apagada** «QA Prueba F Campaña de fletes» con los 6, y dos ventas de «Con flete A» (V1 de 2 piezas y V2 de 3) anteriores a cualquier viaje. No toca tu campaña real. Se puede tocar las veces que quieras: reinicia todo.
+**Antes de empezar:** en **Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba** toca **«Preparar prueba F»**. Crea 6 productos «QA Prueba F …» de $120 (A, B y C con flete guardado de $20, $15 y $10 por pieza; D, E y F sin flete guardado), cada uno con stock 10 (A queda con **5**, porque las dos ventas de abajo le restan 5), una campaña **apagada** «QA Prueba F Campaña de fletes» con los 6, y dos ventas de «Con flete A» (V1 de 2 piezas y V2 de 3) anteriores a cualquier viaje. No toca tu campaña real. Se puede tocar las veces que quieras: reinicia todo.
 
 1. **Catálogo → Fletes → Nuevo viaje.** Pon flete total $100 y un gasto «gasolina» de $40 que cuenta para cubrir (a cubrir $140).
-2. En «Traer los productos de una campaña» elige la de la prueba F y pulsa **Traer**. Salen los 6 con 1 pieza y costo $60. **A, B y C** llegan con su flete ($20, $15, $10); **D, E y F** con $0 y la marca «sin flete guardado». El aviso dice «3 con su flete guardado y 3 sin flete guardado».
+2. En «Traer los productos de una campaña» elige la de la prueba F y pulsa **Traer**. Salen los 6, cada uno con **su stock como piezas** (desde el 2026-11-12 ya no entran con 1 pieza): **A = 5, B, C, D, E y F = 10**, y costo $48 (el costo de compra del catálogo de prueba). **A, B y C** llegan con su flete ($20, $15, $10); **D, E y F** con $0 y la marca «sin flete guardado». El aviso dice «Se agregaron 6 producto(s): 3 con su flete guardado y 3 sin flete guardado… Cada uno trae su stock actual como piezas: ajusta las que no sean de este viaje.»
 3. Vuelve a pulsar **Traer**: dice que los 6 ya estaban y no se duplica nada.
-4. Arriba aparece «3 producto(s) sin flete guardado. Faltan por cubrir $…» (cubrir $140 − $45 de A, B y C = **$95**). Pulsa **Llenar el flete que falta**: D, E y F quedan en **$31.67** por pieza y la marca desaparece; A, B y C no cambian.
-5. Prueba el otro camino con un viaje nuevo: trae la campaña y **no** pulses el botón: D, E y F se quedan en $0.
-6. Guarda el viaje. En su tarjeta abre **Ligar ventas anteriores**, elige «Con flete A» y liga **V1** y **V2** (5 piezas): es lo mismo que la prueba de ligar, sin crear ventas a mano.
+4. Con esas piezas A, B y C ya llevan **$350** de flete (5×$20 + 10×$15 + 10×$10) y el costo a cubrir es **$140**: arriba dice «3 producto(s) sin flete guardado. Faltan por cubrir **$0.00**», el resumen marca «Flete de más $210» y **«Llenar el flete que falta» sale desactivado** (no falta nada). Para ver el botón trabajar, simula que a este viaje solo llegó **1 pieza** de cada producto: pon **1** en «Piezas» de los 6. Ahora A, B y C llevan $45 y arriba dice «Faltan por cubrir **$95.00**» (140 − 45). Pulsa **Llenar el flete que falta**: D, E y F quedan en **$31.67** por pieza (95 ÷ 3 piezas) y la marca desaparece; A, B y C no cambian.
+5. Prueba el otro camino con un viaje nuevo: trae la campaña y **no** pulses el botón: D, E y F se quedan en $0 (lo que se venda de ellos es ganancia).
+6. Guarda el viaje. En su tarjeta abre **Ligar ventas anteriores**, elige «Con flete A» y liga **V1** y **V2** (5 piezas): es lo mismo que la prueba de ligar, sin crear ventas a mano. **Ojo:** para poder ligar las 5 piezas, el renglón de «Con flete A» debe tener **5 piezas o más** (si dejaste 1 pieza en el paso 4, súbele a 5 antes de guardar); si no, el sistema no te deja ligar más de las que le quedan al viaje.
 ⛔ No puede pasar: productos repetidos, que A, B o C cambien su flete al llenar, o que se mueva algún flete solo al cambiar piezas.
 
 ## 4.4 Prueba extra — un solo flete entre el viaje y «Calcular precio»
@@ -238,10 +238,10 @@ ORDER BY v.id DESC LIMIT 20;
 ## 6. Lo que todavía NO hace (para que no lo esperes)
 
 - **El reporte por categoría no se filtra por viaje**; para ver un viaje usa la tarjeta de Fletes o su Excel/PDF.
-- **Las pruebas todavía no se arman solas** (el botón «🧪 Preparar prueba» no está hecho para fletes): los datos se crean a mano como arriba.
+- **Solo la prueba 4.3 (y la 4.4, que parte de ella) se arma sola**: el botón **«Preparar prueba F»** (Sistema → 🗑️ Limpiar caché → 🧪 Datos de prueba) crea sus productos, su campaña apagada y dos ventas. **Las pruebas 1 a 12 todavía no tienen botón**: ahí los datos (el producto P con stock 10, el producto Q, etc.) se crean a mano como se indica.
 - **El stock de antes de los viajes es una aproximación:** el sistema no guarda de qué viaje es cada pieza física. Si ajustas el stock a mano o hay piezas que salen sin venta (rifas, bajas), la cuenta de «piezas sin viaje» puede salir distinta de la real.
 - **Una devolución o una edición puede mover «desde qué venta se pagó el flete»** en meses pasados (se calcula siempre con toda la historia del viaje).
-- **Nada de esto está en producción.** Para llevarlo hay que correr las dos migraciones en prod y subir back y front, solo con tu orden.
+- **Producción:** Fletes ya está en producción (código desde 2026-11-12; tablas verificadas el 2026-11-26). Estas pruebas se hacen solo en QA.
 
 ## 7. Si algo sale mal
 
