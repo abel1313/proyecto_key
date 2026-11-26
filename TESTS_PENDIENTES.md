@@ -717,3 +717,15 @@ Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) 
 - `PUT /v1/pedidos/{id}/datos-visibles`: acepta CLIENTE/RECEPTOR; rechaza RECEPTOR sin nombre de quien recibe y CLIENTE sin cliente; `PUT /entrega` con nombre vacío rechazado si está en RECEPTOR.
 - Errores: repetir un código de barras (Nuevo producto y Agregar artículo) → mensaje «El código de barras «X» ya está registrado…», no el texto de MySQL; el log del servidor sí trae el detalle técnico; mensajes que ya eran claros salen iguales.
 **Pendiente para después (anotado):** que el permiso de editar estos datos sea configurable por rol (hoy solo ADMIN, fijo en `SecurityConfig`).
+
+## Hotfix de protección a producción (2026-11-26)
+**Dónde:** `ClasificadorTipoPrecio.origenesDe`, `ProductosControllerImpl` (`obtenerProductos`, `buscarNombreOrCodigoBarra`), `VarianteController.tope()` y `AbstractController.findAll` (`MAXIMO_POR_PAGINA`), `application-docker.yml` (swagger).
+**Debe comprobar:**
+- Prod con `exigir-header-refresh: true`: iniciar sesión, esperar a que caduque el access token (15 min) o forzar un refresh → la sesión se renueva sin pedir login; cerrar sesión funciona. `curl -X POST .../auth/refresh` SIN el encabezado `X-Requested-With` → 403 «Falta el header X-Requested-With»; con el encabezado → 401 «No hay refresh token» (sin cookie) o 200 (con cookie).
+- CORS de prod: una petición con `Origin: https://venta-bolsas-online.netlify.app` ya no recibe `Access-Control-Allow-Origin`; con `Origin: https://shop.novedades-jade.com.mx` sí.
+- Sin la tabla `detalle_pedido_precio_grupo` (o sin su columna `origen`): `origenesDe` devuelve mapa vacío, no lanza y NO marca la transacción para deshacerse (un cobro/abono a crédito se guarda). Con la tabla: devuelve `{id → GRUPO/CAMPANA}` como antes; si la migración se corre con el back vivo, empieza a leerla sola en ≤ 1 minuto.
+- `GET /v1/productos/obtenerProductos?size=1000000` y `/buscarNombreOrCodigoBarra?size=1000000` → se atienden con 200 por página; `size=50` igual que antes; `size=0` o negativo → 1.
+- `GET /v1/variantes/buscar`, `buscar-filtrado`, `porProducto/{id}/paginado`, `imagenes/{id}/paginado`, `paginado/resumen` con `size=1000000` → 200 por página; `GET /v1/variantes/getAll?page=0&size=1000000` → 1000 por página.
+- Con perfil `docker`: `/v3/api-docs` y `/swagger-ui/index.html` responden **500** (el manejador genérico convierte la ruta inexistente en 500, con stack trace en el log; no expone nada) y `/swagger-ui.html` 401. Si se quiere 404, agregar un manejador de `NoResourceFoundException` (cambio aparte). Medido con el contexto de prueba, no con el perfil `docker` completo.
+- `GET /v1/clientes/getAll?page=-1&size=1000000` (admin) → página 0 con 1000 elementos, sin 500.
+- Sigue abierto en prod, y no es de este hotfix: `POST /v1/mp/test/simular-pago/{id}` (`@Profile("dev")` solo en un método, solo ROLE_ADMIN) y el webhook de Facebook acepta peticiones sin firma si falta el secreto. La tabla de `CAMBIOS_FRONT.md` ~22932 dice que ya llegaron a prod: no es cierto.
