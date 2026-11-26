@@ -1,5 +1,6 @@
 package com.ventas.key.mis.productos.service;
 
+import com.ventas.key.hexagonal.preciocantidad.infraestructura.salida.persistencia.TablasDisponibles;
 import com.ventas.key.mis.productos.entity.DetallePedido;
 import com.ventas.key.mis.productos.entity.DetallePedidoPrecioGrupo;
 import com.ventas.key.mis.productos.entity.Producto;
@@ -40,11 +41,19 @@ public class ClasificadorTipoPrecio {
     @Autowired(required = false)
     private IDetallePedidoPrecioGrupoRepository origenes;
 
+    /**
+     * Revisa por una conexión aparte si la tabla y su columna {@code origen} ya existen. Sin esto, si la migración no se corrió, la consulta falla DENTRO
+     * de la transacción del cobro y la marca para deshacerse aunque aquí se atrape el error (el cobro entero fallaba).
+     */
+    @Autowired(required = false)
+    private TablasDisponibles tablas;
+
     /** El origen (GRUPO o CAMPANA) de las líneas que ya están guardadas: detallePedidoId → origen. Vacío si no se pudo leer. */
     public Map<Integer, String> origenesDe(Collection<DetallePedido> lineas) {
         Map<Integer, String> mapa = new HashMap<>();
         try {
             if (origenes == null || lineas == null) return mapa;
+            if (tablas == null || !tablas.existe("detalle_pedido_precio_grupo") || !tablas.existeColumna("detalle_pedido_precio_grupo", "origen")) return mapa;
             List<Integer> ids = new ArrayList<>();
             for (DetallePedido dp : lineas) if (dp.getId() != null) ids.add(dp.getId());
             if (ids.isEmpty()) return mapa;
