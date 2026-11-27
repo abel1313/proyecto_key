@@ -52,6 +52,10 @@ spring:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
       mail.smtp.starttls.required: true
+      # Sin estos tiempos un SMTP colgado dejaba esperando al hilo para siempre (hallazgo del revisor, 2026-11-27).
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
 
 clave-seguridad:
   # Valor por defecto SOLO para desarrollo local — no es un secreto real y no debe usarse en
@@ -136,6 +140,13 @@ whatsapp:
   bot:
     # Cuánto se aparta el bot después de que una persona contesta (se reinicia con cada respuesta suya).
     pausa-minutos: ${WHATSAPP_BOT_PAUSA_MINUTOS:30}
+    # Fase 2: que el bot tome pedidos (Apartado). Apagado por defecto: se prende primero en QA.
+    pedidos-habilitado: ${WHATSAPP_BOT_PEDIDOS_HABILITADO:false}
+    # Cuenta que figura como «vendedor» del pedido. 0 = la primera cuenta ROLE_ADMIN activa.
+    usuario-id: ${WHATSAPP_BOT_USUARIO_ID:0}
+    # Tope de Apartados abiertos (no cancelados, no entregados) por número de WhatsApp. 0 = SIN tope.
+    # ❓ Pendiente de decidir por el dueño; se recomienda 3 (ver PLAN_WHATSAPP_BOT.md).
+    max-apartados-abiertos: ${WHATSAPP_BOT_MAX_APARTADOS_ABIERTOS:0}
 
 # Cobro con tarjeta (dominio hexagonal pagotarjeta, rama feature/pago-tarjeta). SIN estas dos lineas el modulo no existe.
 # La pasarela "simulada" NUNCA mueve dinero: el resultado depende de los centavos del total

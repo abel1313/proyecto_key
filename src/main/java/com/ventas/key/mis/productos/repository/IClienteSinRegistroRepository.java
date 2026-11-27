@@ -7,9 +7,13 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Repository
 public interface IClienteSinRegistroRepository extends BaseRepository<ClienteSinRegistro,Integer>{
+
+    /** El registro más reciente de ese teléfono (10 dígitos): el bot de WhatsApp lo usa para reutilizar los datos que ya dio. */
+    Optional<ClienteSinRegistro> findFirstByNumeroTelefonicoOrderByIdDesc(String numeroTelefonico);
 
     // Huerfanos: creados antes del cutoff (margen de seguridad, ver
     // ClienteSinRegistroLimpiezaScheduler) y sin ningun Pedido que los referencie -- el admin

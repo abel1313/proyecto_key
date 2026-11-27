@@ -802,7 +802,7 @@ public abstract class ChatbotBase {
                     .limit(4).toList();
             java.util.Map<Integer, Variantes> encontrados = new java.util.LinkedHashMap<>();
             for (String termino : elegidos) {
-                for (Variantes v : varianteRepository.buscarCoincidenciasParaChatbot(termino, conCodigoBarras, PageRequest.of(0, 10))) {
+                for (Variantes v : filtrarCatalogoDelCanal(varianteRepository.buscarCoincidenciasParaChatbot(termino, conCodigoBarras, PageRequest.of(0, 10)))) {
                     encontrados.putIfAbsent(v.getId(), v);
                     if (encontrados.size() >= 20) break;
                 }
@@ -811,7 +811,7 @@ public abstract class ChatbotBase {
             if (encontrados.isEmpty()) return "";
             StringBuilder sb = new StringBuilder("\nARTÍCULOS QUE COINCIDEN CON LO QUE ESCRIBIÓ EL CLIENTE (están disponibles con stock; si piden uno de estos, SÍ lo tenemos):\n");
             for (Variantes v : encontrados.values()) {
-                sb.append("- ").append(v.getProducto().getNombre());
+                sb.append("- ").append(v.getProducto().getNombre()).append(referenciaDeArticulo(v));
                 if (conCodigoBarras && v.getProducto().getCodigoBarras() != null
                         && v.getProducto().getCodigoBarras().getCodigoBarras() != null
                         && !v.getProducto().getCodigoBarras().getCodigoBarras().isBlank()) {
@@ -838,14 +838,32 @@ public abstract class ChatbotBase {
         }
     }
 
+    /**
+     * Gancho para que un canal reduzca el catálogo que ve el modelo. Por defecto devuelve la lista tal cual,
+     * así que el sitio web, el chat en vivo, Facebook e Instagram NO cambian. WhatsApp lo usa para dejar solo
+     * artículos con imagen (decisión del dueño, 2026-11-27).
+     */
+    protected List<Variantes> filtrarCatalogoDelCanal(List<Variantes> variantes) {
+        return variantes;
+    }
+
+    /**
+     * Gancho para que un canal agregue una referencia interna junto a cada artículo del catálogo que ve el modelo
+     * (WhatsApp la usa para tomar pedidos: el modelo dice «ref» y el sistema valida el artículo contra la base).
+     * Por defecto no agrega nada, así que el sitio web, el chat en vivo, Facebook e Instagram NO cambian.
+     */
+    protected String referenciaDeArticulo(Variantes v) {
+        return "";
+    }
+
     /** {@code conCodigoBarras}: el catalogo que ve el modelo lleva el codigo de barras solo cuando quien pregunta esta autorizado (por defecto el ADMIN). */
     protected String obtenerContextoVariantes(String categoria, boolean conCodigoBarras) {
         try {
-            List<Variantes> variantes = (categoria != null)
+            List<Variantes> variantes = filtrarCatalogoDelCanal((categoria != null)
                     ? varianteRepository.buscarParaChatbotPorCategoria(
                             0, '1', categoria, PageRequest.of(0, MAX_VARIANTES_CONTEXTO_CHATBOT))
                     : varianteRepository.findByStockGreaterThanAndProductoHabilitado(
-                            0, '1', PageRequest.of(0, MAX_VARIANTES_CONTEXTO_CHATBOT)).getContent();
+                            0, '1', PageRequest.of(0, MAX_VARIANTES_CONTEXTO_CHATBOT)).getContent());
 
             if (variantes.isEmpty()) {
                 return categoria != null
@@ -856,7 +874,7 @@ public abstract class ChatbotBase {
             boolean detallado = categoria != null;
             StringBuilder sb = new StringBuilder();
             for (Variantes v : variantes) {
-                sb.append("- ").append(v.getProducto().getNombre());
+                sb.append("- ").append(v.getProducto().getNombre()).append(referenciaDeArticulo(v));
 
                 if (conCodigoBarras && v.getProducto().getCodigoBarras() != null
                         && v.getProducto().getCodigoBarras().getCodigoBarras() != null

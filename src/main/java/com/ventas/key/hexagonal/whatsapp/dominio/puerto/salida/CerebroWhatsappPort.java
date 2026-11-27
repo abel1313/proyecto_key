@@ -12,6 +12,11 @@ import java.util.List;
  */
 public interface CerebroWhatsappPort {
 
-    /** Respuesta cruda del chatbot, con sus marcas internas ({@code ##HUMANO##}, etc.). */
-    String responder(String mensaje, List<TurnoDeConversacion> historial, boolean esPrimeraVez);
+    /**
+     * Respuesta cruda del chatbot, con sus marcas internas ({@code ##HUMANO##}, {@code ##PEDIDO{..}##}, etc.).
+     *
+     * @param contextoDePedido datos de esta conversación para tomar un pedido (número del cliente, lo que ya dio), o
+     *                         {@code null} si el bot no toma pedidos (regla R16): entonces el modelo ni sabe que existen
+     */
+    String responder(String mensaje, List<TurnoDeConversacion> historial, boolean esPrimeraVez, String contextoDePedido);
 }

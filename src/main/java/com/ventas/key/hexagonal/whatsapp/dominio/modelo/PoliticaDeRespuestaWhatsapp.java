@@ -28,15 +28,17 @@ public final class PoliticaDeRespuestaWhatsapp {
     public static RespuestaDelBot interpretar(String respuestaCruda, boolean esPrimeraVez) {
         String cruda = respuestaCruda == null ? "" : respuestaCruda;
         boolean pideUnaPersona = cruda.contains("##HUMANO##") || cruda.contains("##ESCALAR##");
-        String limpia = MARCAS.matcher(cruda).replaceAll("").trim();
+        // Las marcas del pedido ({@code ##PEDIDO{..}##}, {@code ##CANCELAR[..]##}) y las «ref» del catálogo nunca llegan al
+        // cliente, aunque el bot no tome pedidos (regla R16).
+        String limpia = MARCAS.matcher(InterpreteDeMarcas.limpiar(cruda)).replaceAll("").trim();
 
         if (pideUnaPersona) {
             boolean sirve = !limpia.isBlank() && limpia.length() <= MAX_LARGO_AL_ESCALAR
                     && !PoliticaDeRespuesta.mencionaAlgoInterno(limpia);
-            return new RespuestaDelBot.Escalar(sirve ? limpia : saludoEscalado(esPrimeraVez));
+            return new RespuestaDelBot.Escalar(sirve ? limpia : saludoEscalado(esPrimeraVez), MotivoDeEscalada.PIDIO_UNA_PERSONA);
         }
         if (limpia.isBlank() || PoliticaDeRespuesta.mencionaAlgoInterno(limpia)) {
-            return new RespuestaDelBot.Escalar(saludoEscalado(esPrimeraVez));
+            return new RespuestaDelBot.Escalar(saludoEscalado(esPrimeraVez), MotivoDeEscalada.FALLO_EL_ASISTENTE);
         }
         if (PoliticaDeRespuesta.soloSaluda(limpia)) {
             // Un "Hola" pelón no es una respuesta cordial (regla de respeto de todos los bots).
@@ -46,12 +48,51 @@ public final class PoliticaDeRespuestaWhatsapp {
     }
 
     public static String saludoEscalado(boolean esPrimeraVez) {
-        return "¡Hola! 😊 " + (esPrimeraVez ? PRESENTACION : "") + "En un momento te atendemos por aquí mismo 💖";
+        return saludo(esPrimeraVez) + "En un momento te atendemos por aquí mismo 💖";
     }
 
     /** Foto, audio, sticker, ubicación o contacto sin texto: el bot no los puede leer, los ve una persona. */
     public static String saludoAdjunto(boolean esPrimeraVez) {
-        return "¡Hola! 😊 " + (esPrimeraVez ? PRESENTACION : "")
-                + "Recibimos tu mensaje. En un momento te atendemos por aquí mismo 💖";
+        return saludo(esPrimeraVez) + "Recibimos tu mensaje. En un momento te atendemos por aquí mismo 💖";
+    }
+
+    /** «¡Hola!» y la presentación solo en el primer mensaje; a mitad de la conversación se contesta directo. */
+    static String saludo(boolean esPrimeraVez) {
+        return esPrimeraVez ? "¡Hola! 😊 " + PRESENTACION : "";
+    }
+
+    /** Marca del primer aviso de fuera de horario: sirve para no repetirlo si el cliente insiste (regla R12). */
+    public static final String INICIO_AVISO_FUERA_DE_HORARIO = "Ahorita no hay una persona disponible";
+
+    /**
+     * El cliente pidió una persona y ahorita no hay: se le dice el horario y se le ofrece seguir con el asistente.
+     * No se aparta al bot ni se promete que "en un momento" lo atienden (regla R12).
+     */
+    public static String fueraDeHorario(boolean esPrimeraVez, HorarioDeAtencion horario) {
+        return saludo(esPrimeraVez) + INICIO_AVISO_FUERA_DE_HORARIO + ": nuestro horario de atención es de "
+                + horario.aTexto() + ". Si quieres, yo te sigo ayudando por aquí, o puedes esperar a ese horario "
+                + "para que te atienda una persona 💖 ¿Qué prefieres?";
+    }
+
+    /** Marca del aviso corto (cuando insiste): también cuenta como «ya se le dijo el horario» (hallazgo M6). */
+    public static final String INICIO_AVISO_REPETIDO = "Una persona te atiende desde las";
+
+    /** Si el cliente insiste y ya se le dijo el horario: no se repite el aviso, se confirma y se queda disponible. */
+    public static String fueraDeHorarioRepetido(HorarioDeAtencion horario) {
+        return "¡Claro! 💖 " + INICIO_AVISO_REPETIDO + " " + horario.apertura12()
+                + " (nuestro horario es de " + horario.aTexto() + "). Mientras tanto, si necesitas algo más, aquí estoy 😊";
+    }
+
+    /** El asistente no pudo contestar (el cliente no pidió una persona) y ahorita no hay nadie. */
+    public static String fallaFueraDeHorario(boolean esPrimeraVez, HorarioDeAtencion horario) {
+        return saludo(esPrimeraVez) + "Gracias por escribirnos 💖 Con eso no te puedo ayudar yo por aquí; una persona lo "
+                + "revisa en nuestro horario de atención, de " + horario.aTexto() + ".";
+    }
+
+    /** Foto, audio u otro archivo cuando no hay nadie: se pide que lo escriba y se le dice cuándo lo ve una persona. */
+    public static String adjuntoFueraDeHorario(boolean esPrimeraVez, HorarioDeAtencion horario) {
+        return saludo(esPrimeraVez) + "Recibimos tu mensaje, pero por aquí no puedo ver fotos ni audios. Si me escribes "
+                + "lo que necesitas te ayudo con gusto; si prefieres, una persona lo revisa en nuestro horario de "
+                + "atención, de " + horario.aTexto() + " 💖";
     }
 }
