@@ -26,6 +26,10 @@ public interface IVarianteImagenRepository extends BaseRepository<VarianteImagen
     /** Si el articulo tiene al menos una foto vinculada (el chatbot no debe ofrecer ni "mostrar" una foto que no existe). */
     boolean existsByVarianteId(Integer varianteId);
 
+    /** De esos artículos, solo los ids de los que tienen al menos una imagen (consulta ligera: no trae las imágenes). */
+    @Query("SELECT DISTINCT vi.variante.id FROM VarianteImagen vi WHERE vi.variante.id IN :ids")
+    List<Integer> idsConImagen(@Param("ids") java.util.Collection<Integer> ids);
+
     @Query("""
             SELECT new com.ventas.key.mis.productos.models.ImagenUpdateDto(
                         VI.imagen.id,

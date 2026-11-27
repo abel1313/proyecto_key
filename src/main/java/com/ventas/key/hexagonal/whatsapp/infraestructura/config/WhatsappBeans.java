@@ -2,14 +2,24 @@ package com.ventas.key.hexagonal.whatsapp.infraestructura.config;
 
 import com.ventas.key.hexagonal.whatsapp.aplicacion.servicio.AdministrarConversacionesService;
 import com.ventas.key.hexagonal.whatsapp.aplicacion.servicio.EnvioConVentanaService;
+import com.ventas.key.hexagonal.whatsapp.aplicacion.servicio.PedidoPorWhatsappService;
 import com.ventas.key.hexagonal.whatsapp.aplicacion.servicio.RecibirMensajeWhatsappService;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.entrada.AdministrarConversacionesWhatsappCasoUso;
+import com.ventas.key.hexagonal.whatsapp.dominio.puerto.entrada.PedidoPorWhatsappCasoUso;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.entrada.RecibirMensajeWhatsappCasoUso;
+import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.AvisoAlAdministradorPort;
+import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.BorradoresDePedidoPort;
+import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.CatalogoParaPedidoPort;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.CerebroWhatsappPort;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.ClientesWhatsappPort;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.ControlDeAbusoWhatsappPort;
+import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.DatosConocidosPort;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.EnvioWhatsappPort;
+import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.HorarioDeAtencionPort;
+import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.LugaresDeEntregaPort;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.MensajesWhatsappPort;
+import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.NotificacionesDePedidoPort;
+import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.PedidosApartadoPort;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -53,15 +63,32 @@ public class WhatsappBeans {
     public RecibirMensajeWhatsappCasoUso recibirMensajeWhatsappCasoUso(
             ClientesWhatsappPort clientes, MensajesWhatsappPort mensajes, CerebroWhatsappPort cerebro,
             ControlDeAbusoWhatsappPort abuso, EnvioConVentanaService envio,
-            @Value("${whatsapp.bot.pausa-minutos:30}") long pausaMinutos) {
+            HorarioDeAtencionPort horario, AvisoAlAdministradorPort aviso, PedidoPorWhatsappCasoUso pedidos,
+            @Value("${whatsapp.bot.pausa-minutos:30}") long pausaMinutos,
+            @Value("${whatsapp.bot.pedidos-habilitado:false}") boolean pedidosHabilitado) {
+        // R16: con el interruptor apagado (lo normal hasta probarlo en QA) el bot no toma pedidos y ni lo menciona.
         return new RecibirMensajeWhatsappService(clientes, mensajes, cerebro, abuso, envio, RELOJ,
-                Duration.ofMinutes(pausaMinutos));
+                Duration.ofMinutes(pausaMinutos), horario, aviso, pedidosHabilitado ? pedidos : null);
+    }
+
+    /** El resumen espera el «sí» del cliente {@code whatsapp.bot.pedido-vigencia-minutos} minutos (30 por defecto). */
+    @Bean
+    public PedidoPorWhatsappCasoUso pedidoPorWhatsappCasoUso(
+            CatalogoParaPedidoPort catalogo, LugaresDeEntregaPort lugares, BorradoresDePedidoPort borradores,
+            PedidosApartadoPort pedidos, DatosConocidosPort conocidos, NotificacionesDePedidoPort notificaciones,
+            HorarioDeAtencionPort horario,
+            @Value("${whatsapp.bot.pedido-vigencia-minutos:30}") long vigenciaMinutos,
+            @Value("${whatsapp.bot.max-apartados-abiertos:0}") int maxApartadosAbiertos) {
+        // max-apartados-abiertos: 0 = sin tope (el dueño aún no decide el valor; se recomienda 3).
+        return new PedidoPorWhatsappService(catalogo, lugares, borradores, pedidos, conocidos, notificaciones, RELOJ,
+                Duration.ofMinutes(vigenciaMinutos), horario, Math.max(0, maxApartadosAbiertos));
     }
 
     @Bean
     public AdministrarConversacionesWhatsappCasoUso administrarConversacionesWhatsappCasoUso(
             ClientesWhatsappPort clientes, MensajesWhatsappPort mensajes, EnvioConVentanaService envio,
+            BorradoresDePedidoPort borradores,
             @Value("${whatsapp.bot.pausa-minutos:30}") long pausaMinutos) {
-        return new AdministrarConversacionesService(clientes, mensajes, envio, RELOJ, Duration.ofMinutes(pausaMinutos));
+        return new AdministrarConversacionesService(clientes, mensajes, envio, RELOJ, Duration.ofMinutes(pausaMinutos), borradores);
     }
 }

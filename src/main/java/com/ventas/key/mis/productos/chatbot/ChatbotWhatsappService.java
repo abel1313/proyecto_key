@@ -1,8 +1,10 @@
 package com.ventas.key.mis.productos.chatbot;
 
+import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.repository.IPalabraClaveRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -51,17 +53,85 @@ public class ChatbotWhatsappService extends ChatbotBase {
             - Hay una persona del negocio que puede tomar esta conversación. Si el cliente pide hablar
               con alguien ("quiero hablar con una persona", "¿hay alguien real?", un reclamo serio),
               o te pregunta algo que no puedes contestar con el catálogo y estas instrucciones (otra
-              talla o color que no aparece, medidas, apartados, mayoreo, devoluciones, envíos fuera de
-              las zonas), haz exactamente esto:
+              talla o color que no aparece, medidas, apartados, mayoreo, devoluciones), haz exactamente
+              esto:
               1. Una línea corta y natural diciendo que en un momento lo atienden por aquí mismo, por
                  ejemplo: "¡Claro! En un momento te atendemos por aquí mismo 💖". No digas que avisaste,
                  mandaste ni notificaste a nadie.
               2. Escribe al final, sin espacios extra: ##HUMANO##
             - Primero intenta contestar con lo que sí sabes; usa ##HUMANO## cuando de verdad haga falta.
 
+            ENTREGAS EN ESTE CANAL (esto lo contestas TÚ, sin pasar a una persona):
+            - NO menciones por tu cuenta que entregamos los fines de semana, ni des fechas u horas de entrega.
+            - Si el cliente quiere que se lo lleven, pregúntale en qué lugar se lo llevamos. Si es uno de los
+              lugares en que entregamos (están en POLÍTICAS DE LA TIENDA), dile que, al hacer su pedido, una
+              persona del negocio se pondrá en contacto con él para acordar el día y la hora de entrega. Si NO es
+              de esos lugares, dile con amabilidad que ahí no entregamos y que puede recogerlo en el local. Si
+              POLÍTICAS DE LA TIENDA no lista ningún lugar, no digas que no entregamos: ofrécele que una persona del
+              negocio le confirme.
+            - Si solo pregunta si entregamos en un lugar, dile si está en la lista y que al hacer el pedido se
+              acuerda el día y la hora. No prometas que alguien lo va a contactar si todavía no va a hacer un pedido.
+            - Si pregunta dónde está el local, no inventes direcciones: pásale {{TIENDA}}/login y dile que ahí
+              encuentra la ubicación del local.
+            - Si pregunta por sus datos o por el aviso de privacidad, compártele {{TIENDA}}/privacidad
+
             SI YA HAY UNA PERSONA EN LA CONVERSACIÓN:
             - En el historial, los mensajes marcados como (persona del negocio) los escribió un humano,
               no tú. Respeta lo que ya contestó: no lo contradigas ni lo repitas.
+
+            """;
+
+    /**
+     * Fase 2 (regla R16 de {@code whatsapp/README.md}): el bot toma el pedido y deja una marca {@code ##PEDIDO{..}##}.
+     * El modelo solo propone cuál artículo (por su «ref») y los datos del cliente: el precio, el resumen, la
+     * confirmación y la creación del pedido las hace el sistema. Solo se manda al modelo con el interruptor encendido.
+     */
+    static final String REGLAS_PEDIDO = """
+            TOMAR PEDIDOS POR WHATSAPP (SIEMPRE COMO APARTADO):
+            - Si el cliente quiere comprar o apartar algo, TÚ tomas su pedido (esto reemplaza lo de pasar a una persona
+              por "apartados"). Todo pedido se hace como APARTADO: no se paga nada ahora y una persona del negocio se pone
+              en contacto para acordar la entrega y el pago (solo efectivo o transferencia). NUNCA pidas ni anotes dinero
+              ni comprobantes de pago.
+            - Si el cliente dice que quiere "ir pagando" o dejar un enganche, dile que igual se hace como apartado y que
+              una persona le confirma el enganche; en la marca pon "irPagando":true. Si NO lo dice, no se lo ofrezcas ni
+              lo menciones.
+            - Cada artículo del catálogo trae una referencia interna [ref N]. NUNCA la escribas al cliente: úsala solo
+              dentro de la marca de pedido.
+            - QUÉ ARTÍCULO: si dice "quiero este" o "lo quiero" y no da nombre claro, pregúntale cuál. Propón UN solo
+              artículo (el que mejor coincide) y espera su sí. Si hay varias opciones parecidas (talla, color), pregunta cuál.
+            - ANTES de pedir sus datos, dile en una línea que se usan solo para este pedido y comparte el aviso de
+              privacidad: {{TIENDA}}/privacidad
+            - DATOS QUE NECESITAS (pídelos de poco en poco, no repitas los que ya dio):
+              1) cantidad de piezas;
+              2) su nombre completo;
+              3) teléfono: pregunta si lo contactamos a este mismo número de WhatsApp (el número está más abajo). Si dice
+                 que sí, "telefonoDeWhatsapp":true; si dice que no, pídele otro de 10 dígitos. Sin teléfono NO se puede
+                 cerrar el pedido: explícale con amabilidad que lo necesitamos para ponernos de acuerdo en la entrega;
+              4) correo: pídelo, repítelo ("¿este es tu correo: ...?") y espera que lo confirme; ahí le llega su ticket;
+              5) nombre de quien recibe (si es él mismo, usa su nombre);
+              6) cómo lo recibe: lugar de entrega (SOLO uno de los lugares donde entregamos, están en POLÍTICAS DE LA
+                 TIENDA) y su dirección completa con referencias, O recoger en el local (entonces no pidas dirección). Si
+                 dice un lugar que no está en la lista, dile con amabilidad que ahí no entregamos y que puede recogerlo
+                 en el local;
+              7) si quiere dejar alguna nota (opcional).
+            - Si más abajo aparece que ya hizo un pedido antes (verás su correo enmascarado, ej. a***@correo.com), pregúntale
+              si quiere usar los mismos datos; si dice que sí, usa "usarDatosPrevios":true en la marca y deja vacío el campo
+              que reutiliza ("correo" y, si quiere la misma dirección, "direccion"). El sistema pone los datos reales.
+            - NUNCA digas que un pedido quedó hecho, apartado, registrado o confirmado, ni inventes un número de pedido: eso lo
+              dice SOLO el sistema después de que el cliente confirma su resumen. Si el cliente te dice "sí" y no ves la marca
+              pendiente, no confirmes nada: pídele que responda SÍ al resumen que le mandó el sistema.
+            - Un solo pedido por mensaje: máximo 10 artículos distintos.
+            - CUANDO TENGAS TODO y el cliente ya confirmó el artículo, su correo y su teléfono: escribe UNA línea corta
+              ("¡Perfecto! Te armo tu resumen 😊") y al final, en una sola línea, la marca (JSON válido):
+              ##PEDIDO{"articulos":[{"ref":123,"cantidad":2}],"nombre":"Ana López","telefonoDeWhatsapp":true,"telefono":"","correo":"ana@correo.com","recibe":"Ana López","direccion":"Calle, número, colonia, referencias","lugar":"Tejupilco","recogerEnLocal":false,"observaciones":"","irPagando":false}##
+              Reglas de la marca: "ref" es el número del [ref N] del artículo. NO escribas precios ni totales. NO escribas
+              tú el resumen ni preguntes "¿confirmas?": el sistema manda el resumen con los precios y pide el sí. Si el
+              cliente quiere cambiar algo, vuelve a escribir la marca completa con lo nuevo. No inventes ningún dato: si
+              falta uno, pídelo.
+            - CANCELAR: tú NO cancelas, NO buscas pedidos y NO das información de pedidos (ni estado, ni totales, ni si
+              existen). Si el cliente quiere cancelar, pídele el número de su pedido (le llegó en el correo del ticket:
+              dice "Pedido #…"); cuando lo tengas, escribe al final ##CANCELAR[123]## con ese número y dile que una
+              persona lo revisa y le avisa.
 
             """;
 
@@ -73,9 +143,23 @@ public class ChatbotWhatsappService extends ChatbotBase {
             presentación en una línea.
             """;
 
+    /** Interruptor de la fase 2 (el mismo que usa el dominio whatsapp): con él apagado el bot ni menciona los pedidos. */
+    @Value("${whatsapp.bot.pedidos-habilitado:false}")
+    private boolean pedidosHabilitados;
+
+    /** Dirección de la tienda en línea de ESTE ambiente (en QA no se mandan las ligas de producción). */
+    private final String baseTienda;
+
     public ChatbotWhatsappService(IVarianteRepository varianteRepository,
-                                  IPalabraClaveRepository palabraClaveRepository) {
+                                  IPalabraClaveRepository palabraClaveRepository,
+                                  @org.springframework.beans.factory.annotation.Value("${app.tienda-base-url:}") String baseTienda) {
         super(varianteRepository, palabraClaveRepository);
+        String limpia = baseTienda == null ? "" : baseTienda.trim().replaceAll("/+$", "");
+        this.baseTienda = limpia.startsWith("http") ? limpia : "https://shop.novedades-jade.com.mx";
+    }
+
+    private String conTienda(String texto) {
+        return texto.replace("{{TIENDA}}", baseTienda);
     }
 
     @Override
@@ -85,9 +169,9 @@ public class ChatbotWhatsappService extends ChatbotBase {
             // Si alguien cambia el texto de la base, las reglas de WhatsApp no se pueden perder en silencio.
             log.warn("ChatbotWhatsappService: no se encontró el ancla del catálogo en promptBase(); "
                     + "las reglas de WhatsApp se agregan al final");
-            return base + REGLAS_WHATSAPP;
+            return base + conTienda(REGLAS_WHATSAPP);
         }
-        return base.replace(ANCLA_CATALOGO, REGLAS_WHATSAPP + ANCLA_CATALOGO);
+        return base.replace(ANCLA_CATALOGO, conTienda(REGLAS_WHATSAPP) + ANCLA_CATALOGO);
     }
 
     /**
@@ -97,22 +181,22 @@ public class ChatbotWhatsappService extends ChatbotBase {
      */
     @Override
     protected String seccionMostrarProductos() {
-        return """
+        return conTienda("""
                 CÓMO HABLAR DE PRODUCTOS EN WHATSAPP — SOLO TEXTO POR AHORA:
                 - Cuando encuentres el producto, dilo por texto: nombre, presentación y precio. Si hay
                   varios que le sirven, menciónale varios, no solo uno.
                 - NUNCA ofrezcas mandar fotos ni imágenes por este chat ni le preguntes si quiere verlas.
                 - Si pide fotos, no se las prometas: invítalo a verlas en la tienda en línea
-                  https://shop.novedades-jade.com.mx/ o ofrécele que una persona del negocio se las mande
+                  {{TIENDA}}/ o ofrécele que una persona del negocio se las mande
                   (en ese caso termina con ##HUMANO##).
                 - Ejemplos:
                   * "tienes shorts?" → "¡Sí! Tenemos el Jeans Short Especial (short chico) a $250 MXN y el
                     Surprise SU8183 (short mezclilla) a $280 MXN 😊 ¿Te digo qué tallas hay?"
                   * "me mandas foto?" → "Por aquí no te puedo mandar fotos, pero las puedes ver en la tienda
-                    en línea: https://shop.novedades-jade.com.mx/ 😊 ¿O prefieres que una persona del negocio
+                    en línea: {{TIENDA}}/ 😊 ¿O prefieres que una persona del negocio
                     te las mande?"
 
-                """;
+                """);
     }
 
     /**
@@ -120,11 +204,41 @@ public class ChatbotWhatsappService extends ChatbotBase {
      * persona), no lo que traiga el cliente: así el bot no se pisa con ella.
      */
     public Mono<String> responder(String mensaje, List<Turno> historial, boolean esPrimeraVez) {
+        return responder(mensaje, historial, esPrimeraVez, null, true);
+    }
+
+    /**
+     * {@code horarioDeAtencion}: texto del horario del negocio («10:00 a.m. a 6:00 p.m.»), o null si el negocio no
+     * tiene uno. Es lo único que el bot puede decir cuando preguntan por el horario (regla R12).
+     */
+    public Mono<String> responder(String mensaje, List<Turno> historial, boolean esPrimeraVez,
+                                  String horarioDeAtencion, boolean hayPersonaAhora) {
+        return responder(mensaje, historial, esPrimeraVez, horarioDeAtencion, hayPersonaAhora, null);
+    }
+
+    /**
+     * {@code contextoDePedido}: datos de la conversación para tomar un pedido (número del cliente, lo que ya dio), o
+     * null si el bot no toma pedidos (fase 2, regla R16): entonces el modelo no recibe ninguna regla de pedidos.
+     */
+    public Mono<String> responder(String mensaje, List<Turno> historial, boolean esPrimeraVez,
+                                  String horarioDeAtencion, boolean hayPersonaAhora, String contextoDePedido) {
         List<Turno> hilo = historial == null ? List.of() : recientes(historial);
         String categoria = detectarCategoriaEnConversacion(mensaje, textosDelCliente(hilo));
+        boolean tomaPedidos = contextoDePedido != null && pedidosHabilitados;
 
         List<Map<String, String>> mensajes = new ArrayList<>();
-        mensajes.add(Map.of("role", "system", "content", promptBase() + obtenerContextoVariantes(categoria)));
+        String catalogo = obtenerContextoVariantes(categoria);
+        if (tomaPedidos) {
+            // El catálogo general es solo una página: lo que el cliente nombró se suma para que el artículo SÍ tenga «ref».
+            List<String> dicho = new ArrayList<>(textosDelCliente(hilo));
+            dicho.add(mensaje);
+            catalogo += coincidenciasConLoPedido(dicho, false);
+        }
+        mensajes.add(Map.of("role", "system", "content", promptBase() + catalogo));
+        mensajes.add(Map.of("role", "system", "content", seccionHorario(horarioDeAtencion, hayPersonaAhora)));
+        if (tomaPedidos) {
+            mensajes.add(Map.of("role", "system", "content", conTienda(REGLAS_PEDIDO) + contextoDePedido));
+        }
         if (esPrimeraVez) {
             mensajes.add(Map.of("role", "system", "content", PRIMER_MENSAJE));
         }
@@ -134,6 +248,42 @@ public class ChatbotWhatsappService extends ChatbotBase {
         log.info("WhatsApp: prompt armado (categoría={}, {} mensajes al modelo), llamando a la IA",
                 categoria, mensajes.size());
         return llamarOpenAIConversacion(mensajes);
+    }
+
+    static String seccionHorario(String horarioDeAtencion, boolean hayPersonaAhora) {
+        if (horarioDeAtencion == null || horarioDeAtencion.isBlank()) {
+            return "HORARIO: el negocio no tiene un horario configurado. Si preguntan por el horario, no des ni "
+                    + "inventes ninguno: dile con amabilidad que una persona del negocio se lo confirma.";
+        }
+        String base = "HORARIO DE ATENCIÓN CON UNA PERSONA: de " + horarioDeAtencion + ". Si preguntan por el horario, "
+                + "dilo así. Tú contestas a cualquier hora. No des ningún otro horario ni días de atención.";
+        if (hayPersonaAhora) {
+            return base;
+        }
+        return base + " AHORA MISMO NO HAY NINGUNA PERSONA DISPONIBLE (estamos fuera de ese horario). Por eso: NUNCA "
+                + "escribas ##HUMANO## ni digas que \"en un momento lo atienden\". Si el cliente pide una persona o "
+                + "prefiere esperar, dile con naturalidad que lo atienden dentro del horario y pregúntale si quiere que "
+                + "mientras tanto lo sigas ayudando tú. Si ya se lo dijiste, no lo repitas: sigue ayudándole.";
+    }
+
+    /**
+     * Solo se ofrecen artículos con imagen (decisión del dueño, 2026-11-27): igual que la tienda en línea, un artículo
+     * sin foto no se muestra. El filtro vive aquí, solo en WhatsApp: los demás bots no cambian.
+     */
+    @Override
+    protected List<Variantes> filtrarCatalogoDelCanal(List<Variantes> variantes) {
+        if (variantes == null || variantes.isEmpty() || varianteImagenRepository == null) {
+            return variantes;
+        }
+        List<Integer> ids = variantes.stream().map(Variantes::getId).toList();
+        java.util.Set<Integer> conImagen = new java.util.HashSet<>(varianteImagenRepository.idsConImagen(ids));
+        return variantes.stream().filter(v -> conImagen.contains(v.getId())).toList();
+    }
+
+    /** Solo con la fase 2 encendida: la «ref» deja que el modelo diga cuál artículo sin inventar un id (regla R16). */
+    @Override
+    protected String referenciaDeArticulo(Variantes v) {
+        return pedidosHabilitados ? " [ref " + v.getId() + "]" : "";
     }
 
     private static List<Turno> recientes(List<Turno> historial) {

@@ -11,6 +11,7 @@ import com.ventas.key.hexagonal.whatsapp.dominio.modelo.PlantillaWhatsapp;
 import com.ventas.key.hexagonal.whatsapp.dominio.modelo.ResumenDeConversacion;
 import com.ventas.key.hexagonal.whatsapp.dominio.modelo.VentanaDe24Horas;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.entrada.AdministrarConversacionesWhatsappCasoUso;
+import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.BorradoresDePedidoPort;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.ClientesWhatsappPort;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.MensajesWhatsappPort;
 
@@ -32,14 +33,18 @@ public class AdministrarConversacionesService implements AdministrarConversacion
     private final EnvioConVentanaService envio;
     private final Clock reloj;
     private final Duration pausaDelBot;
+    /** Para descartar el resumen de un pedido cuando una persona toma o contesta la conversación (hallazgo I5); puede ser null. */
+    private final BorradoresDePedidoPort borradores;
 
     public AdministrarConversacionesService(ClientesWhatsappPort clientes, MensajesWhatsappPort mensajes,
-                                            EnvioConVentanaService envio, Clock reloj, Duration pausaDelBot) {
+                                            EnvioConVentanaService envio, Clock reloj, Duration pausaDelBot,
+                                            BorradoresDePedidoPort borradores) {
         this.clientes = clientes;
         this.mensajes = mensajes;
         this.envio = envio;
         this.reloj = reloj;
         this.pausaDelBot = pausaDelBot;
+        this.borradores = borradores;
     }
 
     @Override
@@ -77,6 +82,7 @@ public class AdministrarConversacionesService implements AdministrarConversacion
     @Override
     public ResumenDeConversacion tomar(long clienteId) {
         cliente(clienteId);
+        descartarResumen(clienteId);
         clientes.tomarConversacion(clienteId, reloj.instant());
         return conversacion(clienteId);
     }
@@ -99,11 +105,19 @@ public class AdministrarConversacionesService implements AdministrarConversacion
     /** Si salió, el bot se aparta (R10) y ya no hace falta la marca; si no salió, el historial ya trae el motivo. */
     private MensajeWhatsapp alTerminar(long clienteId, MensajeWhatsapp registro) {
         if (registro.estado() == EstadoMensaje.ENVIADO) {
+            // I5: aunque el bot reanude después, un resumen que quedó esperando ya no vale: una persona entró a la conversación.
+            descartarResumen(clienteId);
             clientes.pausarBot(clienteId, reloj.instant());
             clientes.marcarAtencion(clienteId, false);
             return registro;
         }
         throw new EnvioRechazadoException(registro);
+    }
+
+    private void descartarResumen(long clienteId) {
+        if (borradores != null) {
+            borradores.descartar(clienteId);
+        }
     }
 
     private ResumenDeConversacion resumen(ClienteWhatsapp c, Instant ahora) {

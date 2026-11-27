@@ -831,3 +831,71 @@ Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) 
 - [ ] `AutorizacionPorEndpointTest` (149) y las 5 `Migracion*Test` siguen en verde.
 - [ ] En prod, tras el deploy, con nginx delante: `curl -i https://<dominio>/mis-productos/migration_campana.sql` → 401 (sin sesión) y con token de una clienta → 403.
 **Corrida a mano el 2026-11-26 (prueba temporal ya borrada):** todo lo anterior salió como se espera, salvo la última casilla (nginx real, no se pudo probar desde el contenedor).
+
+## WhatsApp — horario de atención, aviso por correo e imagen obligatoria (2026-11-27)
+**Dónde vive:** `HorarioDeAtencion`, `RecibirMensajeWhatsappService.escalar`, `PoliticaDeRespuestaWhatsapp.fueraDeHorario` / `adjuntoFueraDeHorario`, `HorarioDeAtencionNegocioAdapter`, `AvisoAdministradorCorreoAdapter`, `ChatbotWhatsappService.filtrarCatalogoDelCanal` / `seccionHorario`, `IVarianteImagenRepository.idsConImagen`.
+**Debe comprobar:**
+- Horario 10:00–18:00: a las 09:59 y a las 18:00 está cerrado; a las 10:00 y 17:59 abierto. Cierre antes que apertura cruza medianoche. Sin una de las dos horas, o iguales → no hay horario.
+- Con la hora en UTC, 17:00Z es 11:00 en México (abierto) y 04:00Z es 22:00 del día anterior (cerrado).
+- Dentro del horario, el cliente pide una persona: sale el saludo, el bot se aparta 30 min, la conversación queda marcada y llega UN correo.
+- Fuera del horario, mismo caso: sale el texto con el horario («de 10:00 a.m. a 6:00 p.m.»), el bot NO se aparta, queda marcada y NO hay correo. Una pregunta normal fuera de horario la contesta el bot como siempre.
+- Foto o audio fuera de horario: el texto dice que por aquí no se ven y da el horario.
+- Sin horario configurado, o si leerlo falla: se trata como abierto y no se da ninguna hora.
+- Si el correo falla, se contesta igual y la conversación queda marcada.
+- Un artículo con stock pero **sin imagen** no aparece en lo que ofrece el bot de WhatsApp; el chatbot de la tienda, el chat en vivo, Facebook e Instagram siguen mostrándolo igual que antes.
+- El bot no habla de fines de semana por su cuenta; pregunta el lugar de entrega.
+**Sin probar (necesita QA real):** el correo saliendo de verdad, la consulta de imágenes contra MySQL, y cómo responde la IA con las reglas nuevas.
+**Agregado tras la revisión independiente (2026-11-27), debe comprobar además:**
+- Fuera del horario, el cliente pide una persona y luego insiste («prefiero esperar»): el segundo texto NO repite «Ahorita no hay una persona disponible»; dice «Una persona te atiende desde las 10:00 a.m.».
+- Si el asistente falla o dice algo interno (el cliente no pidió una persona): el correo dice «el asistente no pudo contestar» y, fuera de horario, el texto no pregunta «¿qué prefieres?».
+- «¡Hola!» y la presentación solo en el primer mensaje; a mitad de conversación los textos de escalada empiezan directo.
+- El asunto del correo no lleva saltos de línea ni pasa de ~60 caracteres del nombre de perfil.
+- Un SMTP lento no retrasa la respuesta al cliente ni el procesamiento de otros mensajes (el aviso va en otro hilo; si la cola de 50 se llena, se descarta con un aviso en el log).
+- El bot en QA manda las ligas de la tienda de QA (`app.tienda-base-url`), no las de producción.
+- El bot no dice «una persona se pondrá en contacto» a quien solo pregunta si entregan en un lugar.
+
+## WhatsApp — el bot genera el Apartado (fase 2, 2026-11-27)
+**Dónde vive:** `hexagonal/whatsapp` → `InterpreteDeMarcas` (+ `JsonPlano`), `ValidadorDeSolicitud`, `Confirmacion`, `Telefonos`, `TextosDePedido`, `PedidoPorWhatsappService`, `RecibirMensajeWhatsappService.atenderMarcasDePedido`, `PoliticaDeRespuestaWhatsapp.interpretar`; `PedidosApartadoVentaAdapter`, `CatalogoParaPedidoJpaAdapter`, `LugaresDeEntregaJpaAdapter`, `BorradoresDePedidoMemoriaAdapter`, `DatosConocidosJpaAdapter`, `NotificacionesDePedidoCorreoAdapter`; `ChatbotWhatsappService.REGLAS_PEDIDO` / `referenciaDeArticulo`, `ChatbotBase.referenciaDeArticulo`; `IClienteSinRegistroRepository.findFirstByNumeroTelefonicoOrderByIdDesc`.
+**Tipo:** unitario (dominio y servicio con puertos simulados) · integración con el back completo (H2 o MySQL) · prueba real con la IA y Meta
+**Ya se comprobó el 2026-11-27 con programas desechables (no se dejaron en el repo):** 114 comprobaciones del dominio y los servicios con puertos falsos, y de punta a punta con la aplicación completa arrancada sobre H2 (Apartado creado de verdad con `VentaServiceImpl`: tipo APARTADO, total pagado 0, no entregado, stock descontado, sin venta, observaciones y link, cliente reutilizado en el segundo pedido, carrera de stock, falla técnica). **No** se probó contra MySQL, ni con la IA real, ni con el correo saliendo, ni contra Meta.
+**Debe comprobar:**
+- [ ] Marca: JSON válido con comillas escapadas, llaves dentro de un texto, `ref` como número o como texto; JSON roto, sin cerrar, demasiado anidado o sin objeto → `MarcaDePedidoInvalidaException`, nada se crea y se pide repetir los datos; la marca (rota o no) y las `[ref N]` **nunca** llegan al cliente, aunque el bot no tome pedidos
+- [ ] «Sí» limpio crea el pedido (sí, si, 👍, ok gracias, claro que sí, confirmo mi pedido); «no», «sí pero en talla M», «cambia la cantidad», «sí, y mándame foto» NO lo crean y descartan el resumen
+- [ ] El resumen se usa una sola vez: dos «sí» seguidos (o el mismo mensaje reenviado) crean **un** pedido; a los 31 min el «sí» ya no crea; cada conversación tiene su resumen
+- [ ] El modelo no manda precio: aunque diga otro total en su texto, el resumen y el pedido salen con el precio de la base (incluido el descuento solo si el artículo lo tiene activo)
+- [ ] Artículo: inexistente, de catálogo interno (flores), deshabilitado (él o su producto), sin imagen, sin stock suficiente (dice cuántas hay), con precio 0 → no se ofrece y no se crea; el mismo artículo repetido se suma
+- [ ] Datos: sin teléfono (o de menos de 10 dígitos) no se cierra y se explica; sin nombre, correo con formato malo, sin quién recibe, sin dirección o sin lugar → se pide lo que falta; recoger en el local no pide dirección; número de WhatsApp con y sin «1» después del 52 → 10 dígitos
+- [ ] Lugar: solo los del catálogo (sin importar acentos ni mayúsculas; «centro de Tejupilco» sirve si apunta a una sola zona); otro lugar → «no llevamos a X» + lista real de zonas + recoger en el local, y no se crea
+- [ ] Pedido creado: tipo APARTADO, `total_pagado` 0, no entregado, sin venta, `observaciones` = «Pedido hecho por WhatsApp +número» (+ nota del cliente), `url_facebook` = `https://wa.me/<número>`, lugar, dirección y quién recibe guardados; con «ir pagando» la nota «cambiar a Ir pagando cuando llegue el enganche», sin decirlo no hay nota
+- [ ] Un campo con saltos de línea, caracteres de control o muy largo se limpia/recorta antes de guardarse; el HTML de los correos va escapado
+- [ ] Mismo teléfono, nombre y correo → se reutiliza el cliente sin registro (no se duplica); con otro nombre o correo → cliente nuevo; si la venta falla no queda un cliente suelto (una sola transacción)
+- [ ] Se agotó el artículo entre el resumen y el «sí» → no se crea, mensaje «ya no está disponible», **sin** correo de fallo; falla técnica (sin cuenta vendedor, error de base…) → no se crea nada, mensaje amable sin detalle técnico, conversación marcada y correo al administrador con el motivo y los datos
+- [ ] Correos: ticket al cliente y venta al administrador; si el ticket no sale, el bot lo dice y el pedido igual queda; sin `chat.admin-email` no truena
+- [ ] Cancelar: `##CANCELAR[88]##` → se anota el número, correo al administrador, conversación marcada, el bot no confirma nada del pedido; sin número → lo pide; el bot nunca da estado, total ni existencia de pedidos
+- [ ] Interruptor apagado (por defecto): el modelo no recibe reglas de pedido ni «ref», la marca que escriba se borra y no se crea nada; encendido: el catálogo trae `[ref N]` solo en WhatsApp (el sitio web, el chat en vivo, Facebook e Instagram no cambian)
+- [ ] Permisos: no hay ningún endpoint nuevo; el único camino a crear pedidos es el webhook firmado de Meta
+- [ ] **Con la IA y Meta de verdad (QA):** flujo completo hablando como cliente real; que el modelo escriba la marca con JSON válido y la «ref» correcta; que no muestre «ref» ni precios inventados; que no pida datos que ya tiene; que no ofrezca «ir pagando» sin que lo pidan; que un cliente que ya pidió antes reciba la propuesta de sus datos
+
+### Agregado tras la revisión independiente de la fase 2 (2026-11-27), debe comprobar además
+**Ya se comprobó con programas desechables (178 + 5 comprobaciones, y de punta a punta con H2):** todo lo de abajo salvo lo marcado «con la IA/Meta de verdad».
+- [ ] **C1:** el «sí» (u «ok») escrito ANTES de que saliera el resumen (p. ej. «Sí» a «¿este es tu correo?» y «Ok» enseguida) NO crea el pedido ni manda nada; uno escrito ≥ 3 s DESPUÉS sí. Si Meta rechaza el resumen o se cierra la ventana → no queda borrador y la conversación se marca; el «sí» siguiente no crea. `proponer` no guarda el borrador: lo guarda `resumenEnviado` solo con estado ENVIADO.
+- [ ] **I1:** con precio de grupo o de campaña el «¡Listo!», el ticket y el correo al dueño llevan las líneas y el total REALES (no los del resumen); si el precio cambió entre el resumen y el «sí» → no se crea, sin correo de error, nuevo resumen con precios de hoy (y hay que confirmarlo otra vez); si se agotó → «ya no está disponible» sin correo.
+- [ ] **I2:** nunca se dice cuántas piezas quedan («No tengo esa cantidad…»).
+- [ ] **I3:** «sí» cuando el resumen venció o se perdió (último mensaje del bot = «¿Confirmas tu pedido?») → texto fijo «tu resumen ya venció», el modelo no se consulta; un «sí» sin resumen en el hilo sí va al modelo.
+- [ ] **I4:** «Sí, confirmo mi pedido por favor» confirma; «¿ya está listo?», «¿correcto?», «ok?» no confirman, piden «responde solo SÍ» y el resumen sigue vivo; «¿cuánto es el envío?» descarta el resumen.
+- [ ] **I5:** una persona toma la conversación o el bot se aparta → el resumen se descarta; un mensaje con el bot pausado también lo descarta.
+- [ ] **I6:** con `max-apartados-abiertos=3`: con 2 abiertos se puede, con 3 no (pasa a persona + correo al dueño), se revisa también al confirmar; 0 = sin tope. Cuenta solo Apartados/Ir pagando no cancelados y no entregados hechos desde ese número (SQL probado en H2; probar en MySQL).
+- [ ] **I7:** el correo/dirección de un pedido hecho desde OTRO número nunca se propone; el modelo ve `a***@correo.com` y «Calle ***»; `usarDatosPrevios:true` pone los datos reales; con un correo enmascarado copiado por el modelo no se usa.
+- [ ] **M1:** 11 artículos distintos → «máximo 10»; 10 artículos con nombres, dirección y nota al tope caben en 4096 y conservan la pregunta de confirmación y el aviso de privacidad.
+- [ ] **M2:** `"1 o 2"`, `"-7"`, `-7` → null (cantidad o ref inválidas); `"12"` y `3.0` sí. **M4:** se quita `ref 123`, `(ref 123)`, `ref: 123`, `[ref 123]`, sin tocar palabras como «Prefiero».
+- [ ] **M3:** los correos del pedido salen en otro hilo (cola de 50), no retrasan la respuesta, no escriben nombres en el log; con la cola llena no truena.
+- [ ] **M5:** `##HUMANO##` junto a `##PEDIDO{..}##` → gana la persona y no se crea resumen; `{` lejos de `##PEDIDO` no es una marca y `limpiar` no borra texto ajeno.
+- [ ] **M6 (fase 1):** fuera de horario, el 2.º y el 3.º intento de pedir una persona reciben el aviso corto, nunca el largo otra vez.
+- [ ] **M7:** número no mexicano → se pide teléfono de 10 dígitos una vez y a la segunda se pasa a una persona (sin bucle); sin `whatsapp.bot.usuario-id` se usa la ROLE_ADMIN activa de id más bajo; `CerebroWhatsappAdapter` decide «hay persona ahora» con el `Clock` inyectado.
+- [ ] **M8:** fallo al crear fuera de horario → no dice «muy pronto», da el horario.
+- [ ] **Con la IA y Meta de verdad (QA):** que el modelo use `usarDatosPrevios`, respete «máximo 10 artículos», no diga «quedó apartado» y no pida el teléfono en bucle con un número extranjero.
+- [ ] **I5 (cierre):** el resumen se descarta cuando una persona contesta desde la pantalla o pulsa «Tomar»: aunque el bot reanude a los N minutos, un «ok» posterior no crea un 2.º Apartado.
+- [ ] **N1:** un «sí» escrito menos de 3 s después del resumen (o antes) recibe «responde solo SÍ…», no se pierde en silencio y no descarta el resumen.
+- [ ] **N2:** un correo con «*» (`a***@correo.com`) nunca se guarda como real: se pide de nuevo; con `usarDatosPrevios:true` se reemplaza por el real.
+- [ ] **N4:** el conteo del tope ignora mayúsculas en `estado_pedido` («Cancelado» / «cancelado» / «CANCELADO»); editar las observaciones saca al pedido del conteo (probar en MySQL).
+

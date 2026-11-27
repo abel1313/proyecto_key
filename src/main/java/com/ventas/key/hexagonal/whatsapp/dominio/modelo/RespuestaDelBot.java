@@ -6,6 +6,6 @@ public sealed interface RespuestaDelBot {
     record Contestar(String texto) implements RespuestaDelBot {
     }
 
-    record Escalar(String texto) implements RespuestaDelBot {
+    record Escalar(String texto, MotivoDeEscalada motivo) implements RespuestaDelBot {
     }
 }
