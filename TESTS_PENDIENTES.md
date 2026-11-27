@@ -899,3 +899,22 @@ Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) 
 - [ ] **N2:** un correo con «*» (`a***@correo.com`) nunca se guarda como real: se pide de nuevo; con `usarDatosPrevios:true` se reemplaza por el real.
 - [ ] **N4:** el conteo del tope ignora mayúsculas en `estado_pedido` («Cancelado» / «cancelado» / «CANCELADO»); editar las observaciones saca al pedido del conteo (probar en MySQL).
 
+## WhatsApp — datos del negocio, ubicación ≠ entregas y presentación única (2026-11-27)
+**Dónde vive:** `InformacionDelNegocio` (dominio), `InformacionDelNegocioPort`, `InformacionDelNegocioJpaAdapter`, `CerebroWhatsappAdapter.responder`, `ChatbotWhatsappService.seccionDatosDelNegocio` / `REGLAS_WHATSAPP` / `PRIMER_MENSAJE`, `PoliticaDeRespuestaWhatsapp.PRESENTACION` / `saludo`.
+**Ya se comprobó con un programa desechable (41 comprobaciones, fuera del repo):** armado de la sección con y sin datos, y que todos los saludos del dominio usan la presentación única.
+**Debe comprobar:**
+- [ ] Con dirección «Calle X 123, Tejupilco» y coordenadas: el prompt trae la dirección, la liga `https://www.google.com/maps/search/?api=1&query=<lat>,<lng>`, el horario, la regla «NO listes las zonas de entrega» y la de «NUNCA digas que no tenemos ubicación».
+- [ ] Solo coordenadas (sin dirección): trae la liga del mapa, no inventa dirección y no remite al login. Solo dirección: sin mapa.
+- [ ] Sin dirección ni coordenadas (o coordenadas fuera de rango / (0,0) / solo una de las dos): el prompt remite a `{{TIENDA}}/login` (con la liga del ambiente), no afirma ni niega un local y no inventa dirección.
+- [ ] Con links: solo se listan los configurados (vacíos o en blanco no salen); sin ninguno, el prompt dice que no invente ninguno.
+- [ ] La dirección con saltos de línea o espacios de más sale en una sola línea.
+- [ ] Leer los datos del negocio **no crea ni borra** filas de `configuracion_negocio` (aunque la tabla esté vacía); las redes salen con el negocio abierto o cerrado; la lectura se cachea 1 min; si falla la consulta, el bot contesta igual (remite al login) y reintenta con el siguiente mensaje.
+- [ ] Ningún texto que le llega al cliente dice «asistente automático»; el primer mensaje trae «¡Hola! Te atiende Jade, la asistente virtual de Novedades Jade 💖» (también en los textos de fuera de horario y de adjuntos); a mitad de la conversación no hay saludo. Cambiar `PRESENTACION` cambia todos esos textos y el `PRIMER_MENSAJE`.
+- [ ] Los demás bots (web, chat en vivo, Facebook, Instagram) y `ChatbotBase` no cambiaron.
+- [ ] **Con la IA real (QA):** «Disculpa, ¿dónde te ubicas?» → dirección + mapa + horario, sin listar zonas; «Para ir a ver el juego de herramientas» → da la dirección, no dice que no hay ubicación; «¿entregan en Zacazonapan?» → zonas de entrega; «¿tienen Instagram?» → solo el link configurado; sin datos del negocio → remite al login sin inventar.
+- [ ] Con el negocio **abierto** y con el negocio **cerrado** (botón Abrir/Cerrar), el bot da igual la dirección, el mapa y las redes cuando preguntan «¿tienes local?», «¿tienen algo físico?», «¿dónde te ubicas?»; y con «¿dónde entregan?» lista las zonas de entrega (no la dirección).
+
+### WhatsApp — el bot no inventa y pasa con una persona (2026-11-27)
+Dónde: `ChatbotWhatsappService.REGLAS_WHATSAPP` y `seccionHorario`. Debe comprobar (con IA real):
+- Dentro de horario, pregunta algo fuera del catálogo (ej. "¿es de piel genuina?") → no inventa, dice que una persona lo confirma, conversación marcada, bot en pausa y correo al admin.
+- Fuera de horario, misma pregunta → no inventa, recibe el texto del horario, conversación marcada, sin pausa ni correo; repetirla no repite el aviso.

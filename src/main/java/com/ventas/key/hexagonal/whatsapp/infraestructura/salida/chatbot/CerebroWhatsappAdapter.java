@@ -1,9 +1,11 @@
 package com.ventas.key.hexagonal.whatsapp.infraestructura.salida.chatbot;
 
 import com.ventas.key.hexagonal.whatsapp.dominio.modelo.HorarioDeAtencion;
+import com.ventas.key.hexagonal.whatsapp.dominio.modelo.InformacionDelNegocio;
 import com.ventas.key.hexagonal.whatsapp.dominio.modelo.TurnoDeConversacion;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.CerebroWhatsappPort;
 import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.HorarioDeAtencionPort;
+import com.ventas.key.hexagonal.whatsapp.dominio.puerto.salida.InformacionDelNegocioPort;
 import com.ventas.key.mis.productos.chatbot.ChatbotWhatsappService;
 import org.springframework.stereotype.Component;
 
@@ -26,17 +28,21 @@ public class CerebroWhatsappAdapter implements CerebroWhatsappPort {
 
     private final ChatbotWhatsappService chatbot;
     private final HorarioDeAtencionPort horario;
+    private final InformacionDelNegocioPort negocio;
     private final Clock reloj;
 
     @org.springframework.beans.factory.annotation.Autowired
-    public CerebroWhatsappAdapter(ChatbotWhatsappService chatbot, HorarioDeAtencionPort horario) {
-        this(chatbot, horario, Clock.systemUTC());
+    public CerebroWhatsappAdapter(ChatbotWhatsappService chatbot, HorarioDeAtencionPort horario,
+                                  InformacionDelNegocioPort negocio) {
+        this(chatbot, horario, negocio, Clock.systemUTC());
     }
 
     /** Con el reloj inyectado (hallazgo M7): la hora con la que se decide si hay una persona sale del mismo reloj que el resto. */
-    CerebroWhatsappAdapter(ChatbotWhatsappService chatbot, HorarioDeAtencionPort horario, Clock reloj) {
+    CerebroWhatsappAdapter(ChatbotWhatsappService chatbot, HorarioDeAtencionPort horario,
+                           InformacionDelNegocioPort negocio, Clock reloj) {
         this.chatbot = chatbot;
         this.horario = horario;
+        this.negocio = negocio;
         this.reloj = reloj;
     }
 
@@ -56,7 +62,14 @@ public class CerebroWhatsappAdapter implements CerebroWhatsappPort {
         } catch (RuntimeException e) {
             // sin horario el bot no da ninguno y se trata como abierto
         }
-        String respuesta = chatbot.responder(mensaje, turnos, esPrimeraVez, horarioTexto, hayPersonaAhora, contextoDePedido).block(ESPERA_MAXIMA);
+        InformacionDelNegocio info = InformacionDelNegocio.vacia();
+        try {
+            info = negocio.actual().orElse(InformacionDelNegocio.vacia());
+        } catch (RuntimeException e) {
+            // sin los datos del negocio el bot manda a la tienda en línea a ver la ubicación (regla R22)
+        }
+        String respuesta = chatbot.responder(mensaje, turnos, esPrimeraVez, horarioTexto, hayPersonaAhora, contextoDePedido, info)
+                .block(ESPERA_MAXIMA);
         if (respuesta == null || respuesta.isBlank()) {
             throw new IllegalStateException("El chatbot no devolvió respuesta");
         }
