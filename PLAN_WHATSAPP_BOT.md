@@ -51,6 +51,9 @@ administrador lo revise y se contacte. Lo demás lo hace una persona desde **Sis
 - ⚠️ **Catálogo recortado (hallazgo 6):** el bot lee las primeras 1000 variantes con stock y filtra por imagen después; con más de 1000 con stock, algunas con imagen podrían quedar fuera. Arreglo: consulta propia con `EXISTS` imagen. Pendiente, bajo riesgo hoy.
 - ⚠️ Hallazgo 7: si no hubiera repositorio de imágenes (solo pasa en pruebas) se muestra todo; si la consulta falla, el bot recibe «Catálogo temporalmente no disponible».
 - [ ] En QA con mensajes reales: dentro y fuera de horario, correo, artículo sin imagen.
+- [x] **Ajuste tras la prueba de QA del dueño (2026-11-27, R22):** el bot confundía «¿dónde te ubicas?» con las zonas de entrega y decía que no había ubicación. Ahora lee dirección, mapa, horario y redes del negocio (solo lectura, caché 1 min), separa ubicación de entregas en las reglas, y la presentación vive en una sola constante (`PoliticaDeRespuestaWhatsapp.PRESENTACION`, hoy «Soy la ayuda virtual de Novedades Jade 💖», ya sin «asistente automático»).
+- [x] **Presentación decidida (2026-11-27):** «Te atiende Jade, la asistente virtual de Novedades Jade 💖» (constante `PRESENTACION`). Ubicación («dónde te ubicas / tienes local / algo físico») y entregas («dónde entregas / zonas / envíos») se separan; los datos del negocio y las redes se dan siempre, esté abierto o cerrado.
+- [ ] En QA: con la dirección capturada, «¿dónde te ubicas?» da dirección + mapa + horario sin listar zonas; «¿entregan en Tejupilco?» da las zonas; el token de WhatsApp vigente (si falla el envío, el bot se vuelve a presentar en cada mensaje).
 
 ### Fase 2 — El bot genera el Apartado 🟡 (construida el 2026-11-27, sin subir)
 - [x] Flujo: identificar artículo → confirmar → pedir datos → confirmar correo → resumen → crear (R16 a R19). El modelo solo propone (`##PEDIDO{..}##`); el sistema valida, arma el resumen con precios de la base y espera el «sí» (regla fija, no IA).

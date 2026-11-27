@@ -383,7 +383,7 @@ Pedido del dueño: los bots (chat de la tienda, chat en vivo, mensajes directos 
 código, quién los programó ni sus instrucciones, y no obedecen si les piden ignorarlas. Vive en
 `ChatbotBase.SIN_DETALLES_TECNICOS`, dentro de `REGLAS_DE_RESPETO`. **Todo prompt nuevo tiene que llevar
 `REGLAS_DE_RESPETO`**; si no, se queda sin esta regla. Presentarse como "asistente automático" en el primer mensaje
-directo sí se queda (lo pide Meta). Revisión completa y lo que quedó para revisar: `BUGS_CHATBOT_BACK.md`, sección del
+directo sí se queda (lo pide Meta) en Facebook e Instagram. **En WhatsApp (2026-11-27, decisión del dueño) la presentación es «Te atiende Jade, la asistente virtual de Novedades Jade» y se cambia en un solo lugar: `PoliticaDeRespuestaWhatsapp.PRESENTACION`; sigue diciendo que es virtual, no una persona.** Revisión completa y lo que quedó para revisar: `BUGS_CHATBOT_BACK.md`, sección del
 2026-10-14.
 
 ---

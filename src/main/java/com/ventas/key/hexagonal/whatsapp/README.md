@@ -52,7 +52,7 @@ mensaje se procesa en un pool aparte. Los mensajes de un mismo número se proces
 llena responde 503 y Meta reintenta (R7 evita duplicados). Alcanza con un solo pod, igual que `botredes`.
 
 **R9 — El bot de WhatsApp (`ChatbotWhatsappService`).** Mismas reglas de respeto y de "nada interno" que los
-demás bots (`REGLAS_DE_RESPETO`). Se presenta como asistente automático **solo en el primer mensaje**. Si el
+demás bots (`REGLAS_DE_RESPETO`). Se presenta **solo en el primer mensaje**, con el texto único `PoliticaDeRespuestaWhatsapp.PRESENTACION` (R22). Si el
 cliente pide una persona, o falta un dato, el bot lo dice con amabilidad y marca `##HUMANO##`: se manda el
 saludo (sin la marca) y la conversación pasa a una persona. Foto, audio, sticker, ubicación o contacto sin
 texto: no van a la IA, se saluda y pasa a una persona. Si la IA falla o menciona algo interno, también.
@@ -73,6 +73,8 @@ todos los días; hora de México). Cuando el cliente pide una persona, manda un 
 puede contestar: **dentro del horario** el bot avisa que lo atienden, se aparta (R10), la conversación queda marcada y
 se avisa por correo (R13). **Fuera del horario** el bot NO se aparta ni promete que "en un momento" lo atienden: le dice
 el horario y le ofrece seguir con el asistente o esperar; la conversación queda marcada para verla al abrir, sin correo.
+**No inventa (2026-11-27):** si no sabe un dato (precio, existencia, medida, fecha, política, promoción) no lo supone:
+dice que una persona se lo confirma y escribe `##HUMANO##`, dentro o fuera del horario.
 Si el negocio no tiene horario, se trata como abierto y el bot no da ninguna hora. El bot solo puede decir ese horario.
 Fuera del horario, el modelo recibe «ahorita no hay nadie» y no debe escribir `##HUMANO##`; si aun así lo escribe y el cliente
 insiste, el aviso del horario **no se repite**: se le confirma que lo atienden desde la apertura. Si el asistente falló (no
@@ -89,8 +91,8 @@ imagen (igual que la tienda en línea). Vive en `ChatbotWhatsappService.filtrarC
 
 **R15 — Entregas, ubicación y privacidad en este canal.** El bot no habla por su cuenta de fines de semana ni da
 fechas: pregunta en qué lugar se entrega; si es una zona de la lista, dice que una persona se pondrá en contacto para
-acordar día y hora; si no, que ahí no se entrega y que puede recoger. La ubicación del local la da con la liga del
-login de la tienda; el aviso de privacidad con la liga de `/privacidad`.
+acordar día y hora; si no, que ahí no se entrega y que puede recoger. La ubicación del local la da con los datos del negocio (R22; solo si no hay dirección ni mapa remite a la liga del
+login de la tienda); el aviso de privacidad con la liga de `/privacidad`.
 
 **R16 — El bot genera el Apartado: la IA propone, el sistema decide (fase 2, 2026-11-27).** Interruptor
 `whatsapp.bot.pedidos-habilitado` (`WHATSAPP_BOT_PEDIDOS_HABILITADO`, **apagado por defecto**): apagado, el bot ni menciona los
@@ -179,6 +181,25 @@ se pide de nuevo.
 total). Si el cliente quiere cancelar, pide el número del pedido (el que le llegó en el correo del ticket), escribe
 `##CANCELAR[número]##` y el sistema solo anota el número, avisa al administrador por correo y marca la conversación. No se
 comprueba que el pedido sea de esa persona: lo revisa el administrador antes de cancelar.
+
+**R22 — Datos del negocio, ubicación ≠ entregas y presentación (2026-11-27).** (a) El bot **lee** de Sistema → Negocio y
+contactos la dirección, el punto del mapa (latitud/longitud), el horario y los links de WhatsApp, Facebook, Instagram y TikTok, y
+los pone en el prompt en la sección «DATOS DEL NEGOCIO» (`ChatbotWhatsappService.seccionDatosDelNegocio`) con sus valores
+exactos; la liga del mapa es `https://www.google.com/maps/search/?api=1&query=<lat>,<lng>` (solo con coordenadas válidas). Un dato
+que no existe **no se menciona ni se inventa**; solo se listan las redes configuradas. Con dirección o mapa, el bot **nunca** dice
+que no hay ubicación; sin ninguna de las dos no afirma ni niega un local: remite a `{{TIENDA}}/login`. La lectura es **solo de
+lectura** (`InformacionDelNegocioPort` → `InformacionDelNegocioJpaAdapter`, un `findAll` ordenado, sin pasar por
+`NegocioService.obtenerConfig()` que puede crear o borrar filas) y con caché de 1 min; a diferencia de `getEstado()`, las redes se
+leen siempre, no solo con el negocio cerrado. Si la lectura falla, el bot sigue sin esos datos (remite al login). (b) **Ubicación
+y entregas son dos preguntas distintas**: «¿dónde te ubicas / dónde están / cómo llego?» → ubicación del local (no se listan las
+zonas de entrega); «¿entregan en X? / ¿hacen envíos?» → zonas de entrega. Las reglas y los ejemplos están en `REGLAS_WHATSAPP` y
+en la sección de datos. (c) **La presentación vive en un solo lugar:** `PoliticaDeRespuestaWhatsapp.PRESENTACION`
+(**decidido por el dueño el 2026-11-27: «Te atiende Jade, la asistente virtual de Novedades Jade 💖»**; debe seguir diciendo que es virtual, no
+una persona). La usan `saludo(...)` (todas las respuestas del dominio y los textos de fuera de horario) y `PRIMER_MENSAJE`
+(instrucción al modelo). Para cambiarla se edita **solo esa constante**. Opciones que propuso el dueño: «Soy la ayuda virtual de
+Novedades Jade», «Soy Jade, la ayuda virtual de Novedades Jade», «Te atiende Jade, la asistente virtual de Novedades Jade».
+(d) **Si los envíos fallan** (p. ej. error 190 de token vencido), `esPrimeraVez` se calcula con mensajes **ENVIADOS**, así que el
+bot cree que es la primera vez y se vuelve a presentar en cada mensaje; se arregla el token, no esta lógica.
 
 ## Capas
 
