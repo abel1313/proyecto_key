@@ -157,6 +157,14 @@ contado se pregunta **"¿Ya se lo llevó?"**; si se olvidó, la card tiene **�
 nacer Entregado con Falta pagar. Pedidos unidos: Entregar marca a todos. Regresar a "Falta entregar":
 solo admin por default, configurable en Gestión de roles. Reglas E1–E10: `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §11.
 
+### 2.4 Entrega: nadie pide entrega a domicilio; todos recogen en el punto de encuentro (decidido 2026-11-27)
+
+Palabras del dueño: *"por eso no se puede que el cliente elija un lugar: no saldría para la gasolina; por eso todos van por el pedido a donde se le dice que recojan"*.
+
+- **El cliente no elige dónde se le entrega.** El admin fija, por zona y por semana, fecha, hora y **punto de encuentro** (pantalla **Entregas por zona**). La dirección, zona y pin que captura el cliente en **📍 Dirección** sirven para ubicarlo, no para ir hasta su casa.
+- **Por ahora la ventana del cliente se queda como está** (incluye que escriba su fecha de entrega). **Retomar al final** — ver `PLAN_PEDIDOS_VENTAS_ENTREGA.md` §12 y `PENDIENTES_2026-11-27.md`.
+- ❓ El plan (H12/P7) todavía habla de «a domicilio → dirección del cliente»: preguntar al dueño si ese caso se quita.
+
 ## 3. Meses sin intereses (MSI)
 
 | Regla | Estado |

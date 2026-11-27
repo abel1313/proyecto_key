@@ -358,3 +358,29 @@ desechable antes de entregarla, y una acción nueva de Gestión de roles para En
 
 **Se sube todo junto** (entrega + homologación de pantallas) a `dev` y `qa` cuando esté completo, y
 se prueba en QA (decisión del dueño, 2026-10-06).
+
+---
+
+## 12. Dirección y fecha de entrega del cliente: se queda como está, y todos recogen en el punto de encuentro (decidido 2026-11-27)
+
+Contexto: el dueño preguntó para qué sirve la ventana **«📍 Dirección y fecha de entrega — Pedido #N»** (en Mis pedidos, botón **📍 Dirección** de la tarjeta, y desde el detalle del pedido) y si el cliente debería poder usarla.
+
+Palabras del dueño: *"yo pensé que era para el admin saber dónde se va a entregar o es para el cliente que diga dónde quiere que le entregue… ¿qué pasa si como admin no lo puedo llevar hasta donde dice porque compró algo de 5 pesos, por ejemplo? ¿hay que quitarle esa opción al cliente? porque al final existe una opción para el admin para enviarle al cliente cuándo se le llevaría el pedido y la hora"*; y después: *"bueno, que siga así de momento, pero hay que anotarlo para el final retomarlo… lo de los 5 era un ejemplo; por eso no se puede que el cliente elija un lugar: no saldría para la gasolina. Por eso todos van por el pedido a donde se le dice que recojan"*.
+
+| # | Regla | Estado |
+|---|---|---|
+| X1 | **El cliente no elige el lugar de entrega.** No hay entrega a domicilio: todos pasan por su pedido al **punto de encuentro** que el admin indica (viaje semanal por zona, pantalla **Entregas por zona**: fecha, hora y punto, y se avisa por correo). Motivo: llevarlo hasta donde el cliente quiera no sale ni para la gasolina | decidido |
+| X2 | Lo que el cliente captura en **📍 Dirección** (dirección, zona, pin en el mapa, referencias) sirve para **ubicarlo y saber a qué zona pertenece**; no es una promesa de que se le lleve ahí | decidido |
+| X3 | **Por ahora la ventana se queda como está**: el cliente la sigue pudiendo abrir y escribir su **fecha de entrega** | decidido por ahora; **retomar al final** |
+| X4 | Hueco conocido: el campo «Fecha de entrega» del cliente se guarda en `pedidos.fecha_recogida`, el **mismo dato** que fija el admin al programar el viaje y que usa el **Corte de caja**; nada impide que el cliente la cambie después de programado el viaje (solo se bloquea en pedido cancelado y en ramo de flores). No hay regla de mínimo de compra para entrega | ❓ retomar |
+| X5 | La ventana no explica para qué sirve | ❓ retomar |
+
+**❓ Contradice una versión anterior (no se pisó):** en las secciones H12/P7 y en la regla de «Cómo llegar» de este plan aparece **«a domicilio → dirección o coordenadas del cliente»** como un caso posible. Con X1 ese caso no existe (o es excepcional). Hay que preguntarle al dueño si se quita ese caso del detalle del pedido.
+
+**Opciones que se le propusieron (sin elegir; el dueño dijo «de momento que siga así»):**
+- **A (recomendada):** el cliente sigue dando dirección, zona, mapa y referencias, pero ya **no escribe la fecha**; ve en su pedido la fecha, hora y punto de encuentro que fija el admin; con una línea de texto que explique la ventana.
+- **B:** quitarle al cliente toda la ventana (solo admin).
+- **C:** lo de A más un **mínimo de compra** para entrega (monto a definir por el dueño).
+
+Dónde vive en el código: back `PedidoServiceImpl.editarDatosEntrega` (`PUT /v1/pedidos/{id}/entrega`, el cliente solo edita **su** pedido; bloquea fecha y lugar en ramos de flores) y `EntregaZonaServiceImpl` (viaje por zona); front `mis-pedidos.component.ts` (título de la ventana) y `mis-pedidos.component.html` (botón **📍 Dirección**, permiso `editar-entrega`).
+
