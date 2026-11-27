@@ -1,5 +1,7 @@
 package com.ventas.key.mis.productos.chatbot;
 
+import com.ventas.key.hexagonal.whatsapp.dominio.modelo.InformacionDelNegocio;
+import com.ventas.key.hexagonal.whatsapp.dominio.modelo.PoliticaDeRespuestaWhatsapp;
 import com.ventas.key.mis.productos.entity.productoVariantes.Variantes;
 import com.ventas.key.mis.productos.repository.IPalabraClaveRepository;
 import com.ventas.key.mis.productos.repository.IVarianteRepository;
@@ -60,6 +62,10 @@ public class ChatbotWhatsappService extends ChatbotBase {
                  mandaste ni notificaste a nadie.
               2. Escribe al final, sin espacios extra: ##HUMANO##
             - Primero intenta contestar con lo que sí sabes; usa ##HUMANO## cuando de verdad haga falta.
+            - NO INVENTES NUNCA: si un dato (precio, existencia, medida, material, fecha, política, dirección,
+              promoción) no está en el catálogo, en DATOS DEL NEGOCIO, en POLÍTICAS o en estas instrucciones, no lo
+              supongas ni lo "adivines". Di con amabilidad que una persona del negocio se lo confirma y escribe
+              ##HUMANO## al final.
 
             ENTREGAS EN ESTE CANAL (esto lo contestas TÚ, sin pasar a una persona):
             - NO menciones por tu cuenta que entregamos los fines de semana, ni des fechas u horas de entrega.
@@ -71,8 +77,21 @@ public class ChatbotWhatsappService extends ChatbotBase {
               negocio le confirme.
             - Si solo pregunta si entregamos en un lugar, dile si está en la lista y que al hacer el pedido se
               acuerda el día y la hora. No prometas que alguien lo va a contactar si todavía no va a hacer un pedido.
-            - Si pregunta dónde está el local, no inventes direcciones: pásale {{TIENDA}}/login y dile que ahí
-              encuentra la ubicación del local.
+            - UBICACIÓN ≠ ENTREGAS (no los confundas):
+              * «¿dónde te ubicas?», «¿dónde están?», «¿dónde queda?», «¿tienen local?», «¿tienen tienda o algo
+                físico?», «¿tienen sucursal?», «¿puedo ir a verlos?», «¿cómo llego?», «para ir a ver o comprar en
+                persona» → es la UBICACIÓN DEL LOCAL: contesta con la sección DATOS DEL NEGOCIO (más abajo), con
+                la dirección y la liga del mapa. NO listes las zonas de entrega. Si piden algo más específico
+                (cómo llegar, referencias) y no está en esos datos, da el mapa y ofrece que una persona del negocio
+                se lo precise; no inventes referencias.
+              * «¿dónde entregan?», «¿a qué zonas llegan?», «¿entregan en Tejupilco?», «¿hacen envíos?», «¿me lo
+                llevan?» → son ENTREGAS: contesta con las zonas de POLÍTICAS DE LA TIENDA (la lista de lugares en
+                que entregamos).
+              * Estos datos y las redes se dan SIEMPRE, esté el negocio abierto o cerrado en ese momento.
+              * Si dudas, pregunta con una línea: «¿Quieres saber dónde está nuestro local o si entregamos en
+                tu zona?».
+              * No inventes direcciones ni digas que el negocio no tiene ubicación: usa solo lo que dice DATOS
+                DEL NEGOCIO.
             - Si pregunta por sus datos o por el aviso de privacidad, compártele {{TIENDA}}/privacidad
 
             SI YA HAY UNA PERSONA EN LA CONVERSACIÓN:
@@ -135,13 +154,13 @@ public class ChatbotWhatsappService extends ChatbotBase {
 
             """;
 
-    private static final String PRIMER_MENSAJE = """
-            Este es el PRIMER mensaje de esta persona: nunca le hemos escrito. Empieza con un saludo
-            cordial y di que eres el asistente automático de Novedades Jade (por ejemplo: "¡Hola! Soy el
-            asistente automático de Novedades Jade 💖"), para que sepa que le contesta un asistente y no
-            una persona. Después contesta lo que preguntó. Si necesitas usar ##HUMANO##, igual haz la
-            presentación en una línea.
-            """;
+    private static final String PRIMER_MENSAJE =
+            "Este es el PRIMER mensaje de esta persona: nunca le hemos escrito. Empieza con un saludo cordial y "
+                    + "preséntate con estas palabras: \"¡Hola! " + PoliticaDeRespuestaWhatsapp.PRESENTACION + "\", "
+                    + "para que sepa que le contesta una asistente virtual y no una persona. Después contesta lo que "
+                    + "preguntó, sin repetir la presentación en los mensajes siguientes. Si necesitas usar ##HUMANO##, "
+                    + "igual haz la presentación en una línea. Cuando hables de ti, di siempre que eres Jade, la asistente "
+                    + "virtual de Novedades Jade, y no uses otra forma de presentarte.\n";
 
     /** Interruptor de la fase 2 (el mismo que usa el dominio whatsapp): con él apagado el bot ni menciona los pedidos. */
     @Value("${whatsapp.bot.pedidos-habilitado:false}")
@@ -222,6 +241,17 @@ public class ChatbotWhatsappService extends ChatbotBase {
      */
     public Mono<String> responder(String mensaje, List<Turno> historial, boolean esPrimeraVez,
                                   String horarioDeAtencion, boolean hayPersonaAhora, String contextoDePedido) {
+        return responder(mensaje, historial, esPrimeraVez, horarioDeAtencion, hayPersonaAhora, contextoDePedido,
+                InformacionDelNegocio.vacia());
+    }
+
+    /**
+     * {@code negocio}: dirección, mapa y redes que el negocio tiene capturados (regla R22). Sin ellos el bot manda a la
+     * tienda en línea a ver la ubicación; con ellos los da tal cual y NUNCA dice que no hay ubicación.
+     */
+    public Mono<String> responder(String mensaje, List<Turno> historial, boolean esPrimeraVez,
+                                  String horarioDeAtencion, boolean hayPersonaAhora, String contextoDePedido,
+                                  InformacionDelNegocio negocio) {
         List<Turno> hilo = historial == null ? List.of() : recientes(historial);
         String categoria = detectarCategoriaEnConversacion(mensaje, textosDelCliente(hilo));
         boolean tomaPedidos = contextoDePedido != null && pedidosHabilitados;
@@ -236,6 +266,8 @@ public class ChatbotWhatsappService extends ChatbotBase {
         }
         mensajes.add(Map.of("role", "system", "content", promptBase() + catalogo));
         mensajes.add(Map.of("role", "system", "content", seccionHorario(horarioDeAtencion, hayPersonaAhora)));
+        mensajes.add(Map.of("role", "system", "content",
+                seccionDatosDelNegocio(negocio, horarioDeAtencion, baseTienda)));
         if (tomaPedidos) {
             mensajes.add(Map.of("role", "system", "content", conTienda(REGLAS_PEDIDO) + contextoDePedido));
         }
@@ -250,6 +282,75 @@ public class ChatbotWhatsappService extends ChatbotBase {
         return llamarOpenAIConversacion(mensajes);
     }
 
+    /**
+     * Sección «DATOS DEL NEGOCIO» (regla R22): lo que el negocio capturó en Sistema → Negocio y contactos, con sus valores
+     * EXACTOS. Un dato que no existe no se menciona. Sin dirección ni coordenadas el bot no afirma ni niega un local: manda
+     * a {@code {{TIENDA}}/login}, donde la tienda en línea muestra la ubicación.
+     */
+    static String seccionDatosDelNegocio(InformacionDelNegocio negocio, String horarioDeAtencion, String baseTienda) {
+        InformacionDelNegocio n = negocio == null ? InformacionDelNegocio.vacia() : negocio;
+        StringBuilder sb = new StringBuilder("DATOS DEL NEGOCIO (esto es TODO lo que sabes del local y de sus redes; no inventes nada más):\n");
+        String direccion = n.direccionLimpia();
+        String mapa = n.ligaDelMapa();
+        if (direccion != null) {
+            sb.append("- Dirección del local: ").append(direccion).append('\n');
+        }
+        if (mapa != null) {
+            sb.append("- Liga del mapa (se abre en Google Maps): ").append(mapa).append('\n');
+        }
+        if (horarioDeAtencion != null && !horarioDeAtencion.isBlank()) {
+            sb.append("- Horario: ").append(horarioDeAtencion.trim()).append('\n');
+        }
+        agregarRed(sb, "WhatsApp", n.whatsappLimpio());
+        agregarRed(sb, "Facebook", n.facebookLimpio());
+        agregarRed(sb, "Instagram", n.instagramLimpio());
+        agregarRed(sb, "TikTok", n.tiktokLimpio());
+
+        if (n.tieneUbicacion()) {
+            sb.append("""
+                    REGLAS DE ESTOS DATOS:
+                    - El negocio SÍ tiene un local al que se puede ir, aunque también vendemos en línea. Si preguntan dónde
+                      está, dónde se ubican, dónde queda, cómo llegar, o dicen que quieren ir a ver o a comprar algo en
+                      persona: da la dirección y la liga del mapa que aparecen arriba (solo las que existan) y, si hay horario,
+                      dilo. NUNCA digas que no tenemos ubicación ni que solo vendemos en línea.
+                    - Eso es la UBICACIÓN: NO listes las zonas de entrega al contestarla.
+                    - No agregues indicaciones, referencias ni datos del local que no estén escritos arriba.
+                    - Ejemplos:
+                      * «Disculpa, ¿dónde te ubicas?» → da la dirección (y el mapa si lo hay) y el horario, sin hablar de entregas.
+                      * «¿Entregan en Tejupilco?» → eso es entrega: contesta con las zonas de POLÍTICAS DE LA TIENDA.
+                    """);
+        } else {
+            sb.append("""
+                    UBICACIÓN: el negocio no tiene capturada una dirección ni un punto en el mapa. Si preguntan dónde está el
+                    local o cómo llegar: NO inventes ninguna dirección, NO listes las zonas de entrega como si fueran la
+                    ubicación y NO los mandes a ninguna página a buscarla. Dile con amabilidad que la dirección exacta se la
+                    confirma una persona del negocio. Si POLÍTICAS DE LA TIENDA dice que también se puede recoger en el local,
+                    sí hay local: dilo, y que la dirección se la confirma una persona.
+                    """);
+        }
+        if (n.whatsappLimpio() != null || n.facebookLimpio() != null || n.instagramLimpio() != null
+                || n.tiktokLimpio() != null) {
+            sb.append("""
+                    REDES: si piden nuestras redes o una en particular, da SOLO los links de arriba, tal cual. Si piden una red
+                    que no aparece arriba, dile que por ahora no la tenemos y no inventes ningún link.
+                    """);
+        } else {
+            sb.append("""
+                    REDES: no hay ningún link de redes configurado. Si piden las redes, no inventes ni des ningún link: ofrece
+                    que una persona del negocio se las pase.
+                    """);
+        }
+        sb.append('\n');
+        String base = baseTienda == null ? "" : baseTienda;
+        return sb.toString().replace("{{TIENDA}}", base);
+    }
+
+    private static void agregarRed(StringBuilder sb, String nombre, String url) {
+        if (url != null) {
+            sb.append("- ").append(nombre).append(": ").append(url).append('\n');
+        }
+    }
+
     static String seccionHorario(String horarioDeAtencion, boolean hayPersonaAhora) {
         if (horarioDeAtencion == null || horarioDeAtencion.isBlank()) {
             return "HORARIO: el negocio no tiene un horario configurado. Si preguntan por el horario, no des ni "
@@ -261,9 +362,10 @@ public class ChatbotWhatsappService extends ChatbotBase {
             return base;
         }
         return base + " AHORA MISMO NO HAY NINGUNA PERSONA DISPONIBLE (estamos fuera de ese horario). Por eso: NUNCA "
-                + "escribas ##HUMANO## ni digas que \"en un momento lo atienden\". Si el cliente pide una persona o "
-                + "prefiere esperar, dile con naturalidad que lo atienden dentro del horario y pregúntale si quiere que "
-                + "mientras tanto lo sigas ayudando tú. Si ya se lo dijiste, no lo repitas: sigue ayudándole.";
+                + "digas que \"en un momento lo atienden\". Si el cliente pide una persona, o preguntas algo que no sabes "
+                + "(no lo inventes), escribe ##HUMANO## al final: el sistema le avisa el horario y deja la conversación "
+                + "marcada para que la atiendan dentro del horario. Pregúntale si quiere que mientras tanto lo sigas "
+                + "ayudando tú. Si ya se lo dijiste, no lo repitas: sigue ayudándole.";
     }
 
     /**

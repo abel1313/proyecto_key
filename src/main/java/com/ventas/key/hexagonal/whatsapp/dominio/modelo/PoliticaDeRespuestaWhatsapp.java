@@ -14,7 +14,13 @@ import java.util.regex.Pattern;
  */
 public final class PoliticaDeRespuestaWhatsapp {
 
-    static final String PRESENTACION = "Soy el asistente automático de Novedades Jade. ";
+    /**
+     * Cómo se presenta el bot en el primer mensaje (regla R22). ES EL ÚNICO LUGAR donde vive ese texto: lo usan
+     * el saludo de todas las respuestas del dominio y las instrucciones al modelo ({@code PRIMER_MENSAJE} y
+     * las reglas de WhatsApp). Provisional: el dueño elige el texto final y se cambia aquí, nada más.
+     * Tiene que seguir diciendo que es virtual (no una persona).
+     */
+    public static final String PRESENTACION = "Te atiende Jade, la asistente virtual de Novedades Jade 💖";
 
     // Cualquier marca ##ALGO## o ##ALGO[...]## que el modelo haya dejado.
     private static final Pattern MARCAS = Pattern.compile("##[A-Z]+(\\[[^\\]]*\\])?##");
@@ -48,17 +54,17 @@ public final class PoliticaDeRespuestaWhatsapp {
     }
 
     public static String saludoEscalado(boolean esPrimeraVez) {
-        return saludo(esPrimeraVez) + "En un momento te atendemos por aquí mismo 💖";
+        return saludo(esPrimeraVez) + "En un momento te atendemos por aquí mismo 😊";
     }
 
     /** Foto, audio, sticker, ubicación o contacto sin texto: el bot no los puede leer, los ve una persona. */
     public static String saludoAdjunto(boolean esPrimeraVez) {
-        return saludo(esPrimeraVez) + "Recibimos tu mensaje. En un momento te atendemos por aquí mismo 💖";
+        return saludo(esPrimeraVez) + "Recibimos tu mensaje. En un momento te atendemos por aquí mismo 😊";
     }
 
     /** «¡Hola!» y la presentación solo en el primer mensaje; a mitad de la conversación se contesta directo. */
     static String saludo(boolean esPrimeraVez) {
-        return esPrimeraVez ? "¡Hola! 😊 " + PRESENTACION : "";
+        return esPrimeraVez ? "¡Hola! " + PRESENTACION + " " : "";
     }
 
     /** Marca del primer aviso de fuera de horario: sirve para no repetirlo si el cliente insiste (regla R12). */
