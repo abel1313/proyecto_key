@@ -48,7 +48,8 @@ public class HorarioDeAtencionNegocioAdapter implements HorarioDeAtencionPort {
             return Optional.empty();
         }
         try {
-            return HorarioDeAtencion.de(hora(estado.getHoraApertura()), hora(estado.getHoraCierre()));
+            return HorarioDeAtencion.de(hora(estado.getHoraApertura()), hora(estado.getHoraCierre()),
+                    hora(estado.getHoraAperturaFinSemana()), hora(estado.getHoraCierreFinSemana()));
         } catch (DateTimeParseException e) {
             return Optional.empty();
         }

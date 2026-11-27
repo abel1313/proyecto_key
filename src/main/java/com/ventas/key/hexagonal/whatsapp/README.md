@@ -73,6 +73,11 @@ todos los días; hora de México). Cuando el cliente pide una persona, manda un 
 puede contestar: **dentro del horario** el bot avisa que lo atienden, se aparta (R10), la conversación queda marcada y
 se avisa por correo (R13). **Fuera del horario** el bot NO se aparta ni promete que "en un momento" lo atienden: le dice
 el horario y le ofrece seguir con el asistente o esperar; la conversación queda marcada para verla al abrir, sin correo.
+**Horario con días (2026-11-27):** lunes a viernes tiene su horario y sábado/domingo puede tener otro (`hora_apertura_fin_semana` /
+`hora_cierre_fin_semana` en `configuracion_negocio`, migración `migration_horario_fin_semana.sql`; vacíos = igual que entre semana).
+El bot dice los días tal cual; «¿abierto ahora?» (`HorarioDeAtencion.abiertoEn(Instant)`) usa el horario del día.
+**Ubicación (2026-11-27):** el bot dice SOLO dónde es (la dirección), nunca manda liga de mapa; si quiere ver la ubicación o
+cómo llegar, lo manda a `{tienda}/login` (la aplicación la muestra).
 **No inventa (2026-11-27):** si no sabe un dato (precio, existencia, medida, fecha, política, promoción) no lo supone:
 dice que una persona se lo confirma y escribe `##HUMANO##`, dentro o fuera del horario.
 Si el negocio no tiene horario, se trata como abierto y el bot no da ninguna hora. El bot solo puede decir ese horario.
