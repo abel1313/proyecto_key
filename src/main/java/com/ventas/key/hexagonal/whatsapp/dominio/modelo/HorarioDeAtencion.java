@@ -75,14 +75,14 @@ public record HorarioDeAtencion(LocalTime apertura, LocalTime cierre,
     }
 
     /**
-     * Va después de «de»: «10:00 a.m. a 6:00 p.m.» si es el mismo todos los días, o
+     * Va después de «de»: «10:00 a.m. a 6:00 p.m. todos los días» si es el mismo, o
      * «10:00 a.m. a 6:00 p.m. de lunes a viernes, y de 10:00 a.m. a 2:00 p.m. sábados y domingos».
      */
     public String aTexto() {
         String semana = hora12(apertura) + " a " + hora12(cierre);
         if (!tieneFinDeSemanaPropio()
                 || (aperturaFinSemana.equals(apertura) && cierreFinSemana.equals(cierre))) {
-            return semana;
+            return semana + " todos los días";
         }
         return semana + " de lunes a viernes, y de " + hora12(aperturaFinSemana) + " a " + hora12(cierreFinSemana)
                 + " sábados y domingos";
