@@ -81,8 +81,9 @@ public class ChatbotWhatsappService extends ChatbotBase {
               * «¿dónde te ubicas?», «¿dónde están?», «¿dónde queda?», «¿tienen local?», «¿tienen tienda o algo
                 físico?», «¿tienen sucursal?», «¿puedo ir a verlos?», «¿cómo llego?», «para ir a ver o comprar en
                 persona» → es la UBICACIÓN DEL LOCAL: contesta con la sección DATOS DEL NEGOCIO (más abajo), solo
-                con DÓNDE ES (la dirección), sin mandar mapa. NO listes las zonas de entrega. Si quiere ver la
-                ubicación o cómo llegar, mándalo a {{TIENDA}}/login (en la aplicación aparece). Si piden referencias
+                con DÓNDE ES (la dirección), sin mandar mapa. NO listes las zonas de entrega. Si ya se la diste y
+                vuelve a preguntar («pero dónde queda»), o quiere ver la ubicación o cómo llegar, NO la repitas:
+                mándalo a {{TIENDA}}/login (en la aplicación aparece). Si piden referencias
                 que no están en esos datos, ofrece que una persona del negocio se las precise; no inventes.
               * «¿dónde entregan?», «¿a qué zonas llegan?», «¿entregan en Tejupilco?», «¿hacen envíos?», «¿me lo
                 llevan?» → son ENTREGAS: contesta con las zonas de POLÍTICAS DE LA TIENDA (la lista de lugares en
@@ -297,7 +298,7 @@ public class ChatbotWhatsappService extends ChatbotBase {
         sb.append("- Para VER la ubicación en el mapa: {{TIENDA}}/login (al entrar a la aplicación aparece la ubicación)\n");
         if (horarioDeAtencion != null && !horarioDeAtencion.isBlank()) {
             sb.append("- Horario de atención con una persona: ").append(horarioDeAtencion.trim())
-                    .append(" (si no menciona días, es igual todos los días)\n");
+                    .append(" (di SIEMPRE los días junto con las horas)\n");
         }
         agregarRed(sb, "WhatsApp", n.whatsappLimpio());
         agregarRed(sb, "Facebook", n.facebookLimpio());
@@ -309,9 +310,13 @@ public class ChatbotWhatsappService extends ChatbotBase {
                     REGLAS DE ESTOS DATOS:
                     - El negocio SÍ tiene un local al que se puede ir, aunque también vendemos en línea. Si preguntan dónde
                       está, dónde se ubican, dónde queda, cómo llegar, o dicen que quieren ir a ver o a comprar algo en
-                      persona: dile SOLO dónde es (la dirección de arriba) y, si hay horario, dilo. NO mandes ninguna liga
-                      de mapa. Si además quiere VER la ubicación o cómo llegar, mándalo a la aplicación: {{TIENDA}}/login
-                      (ahí aparece la ubicación). NUNCA digas que no tenemos ubicación ni que solo vendemos en línea.
+                      persona: la PRIMERA vez dile SOLO dónde es (la dirección de arriba) y, si hay horario, dilo (con los
+                      días). NO mandes ninguna liga de mapa. Si vuelve a preguntar por lo mismo («pero dónde queda», «cómo
+                      llego», «mándame la ubicación», «no entiendo», «dame la ubicación exacta»), NO repitas la dirección:
+                      mándalo a la aplicación, donde aparece la ubicación: {{TIENDA}}/login. NUNCA digas que no tenemos
+                      ubicación ni que solo vendemos en línea.
+                    - Nunca contestes dos veces lo mismo con las mismas palabras ni cierres con frases de relleno como
+                      «si tienes más preguntas, no dudes en preguntar»: si ya lo dijiste, da el paso siguiente.
                     - Eso es la UBICACIÓN: NO listes las zonas de entrega al contestarla.
                     - No agregues indicaciones, referencias ni datos del local que no estén escritos arriba.
                     - Ejemplos:
@@ -357,7 +362,7 @@ public class ChatbotWhatsappService extends ChatbotBase {
                     + "inventes ninguno: dile con amabilidad que una persona del negocio se lo confirma.";
         }
         String base = "HORARIO DE ATENCIÓN CON UNA PERSONA: de " + horarioDeAtencion + ". Si preguntan por el horario, "
-                + "dilo así, con los días tal como vienen (si no menciona días, es igual todos los días). Tú contestas a cualquier "
+                + "dilo así, SIEMPRE con los días tal como vienen en ese texto (nunca solo las horas). Tú contestas a cualquier "
                 + "hora. No inventes otro horario ni otros días.";
         if (hayPersonaAhora) {
             return base;
