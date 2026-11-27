@@ -15,6 +15,8 @@ public class NegocioConfigDto {
     private String tiktokUrl;
     private String horaApertura; // "HH:mm"
     private String horaCierre;   // "HH:mm"
+    private String horaAperturaFinSemana; // "HH:mm" o null = igual que entre semana
+    private String horaCierreFinSemana;   // "HH:mm" o null
     private Integer umbralStockBajo;
     private String direccion;
     private Double latitud;

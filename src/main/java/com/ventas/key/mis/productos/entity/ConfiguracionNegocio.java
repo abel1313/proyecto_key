@@ -29,6 +29,13 @@ public class ConfiguracionNegocio extends BaseId {
     @Column(name = "hora_cierre")
     private LocalDateTime horaCierre;
 
+    /** Horario de sabado y domingo. Los dos null = los fines de semana valen lo mismo que entre semana. */
+    @Column(name = "hora_apertura_fin_semana")
+    private LocalDateTime horaAperturaFinSemana;
+
+    @Column(name = "hora_cierre_fin_semana")
+    private LocalDateTime horaCierreFinSemana;
+
     @Column(name = "whatsapp_url", length = 500)
     private String whatsappUrl;
 

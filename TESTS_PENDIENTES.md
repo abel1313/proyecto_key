@@ -918,3 +918,12 @@ Pendiente aparte: borrar un viaje que ya tuvo ventas (aunque se hayan devuelto) 
 Dónde: `ChatbotWhatsappService.REGLAS_WHATSAPP` y `seccionHorario`. Debe comprobar (con IA real):
 - Dentro de horario, pregunta algo fuera del catálogo (ej. "¿es de piel genuina?") → no inventa, dice que una persona lo confirma, conversación marcada, bot en pausa y correo al admin.
 - Fuera de horario, misma pregunta → no inventa, recibe el texto del horario, conversación marcada, sin pausa ni correo; repetirla no repite el aviso.
+
+### Negocio — horario de fin de semana + WhatsApp (2026-11-27)
+Dónde: `HorarioDeAtencion` (`abiertoEn(Instant)`, `aTexto()`), `NegocioService.actualizarHorario/getConfig/getEstado`, pantalla Sistema → Negocio. Debe comprobar:
+- Sin horario de fin de semana: sábado 4 p.m. con 10–6 → abierto; texto «10:00 a.m. a 6:00 p.m.» sin días.
+- Con fin de semana 10–2: sábado 4 p.m. → cerrado; domingo 9 a.m. → cerrado; lunes 4 p.m. → abierto; texto «… de lunes a viernes, y de 10:00 a.m. a 2:00 p.m. sábados y domingos».
+- Fin de semana incompleto (solo una hora) o apertura = cierre → se ignora (valen los de entre semana).
+- `PUT /v1/negocio/horario` con `horaAperturaFinSemana:""` y `horaCierreFinSemana:""` → quita el horario de fin de semana; con los dos nulos no los toca.
+- Bot: «¿dónde están?» → solo la dirección, sin liga de mapa; «mándame la ubicación» → `{tienda}/login`.
+- Migración `migration_horario_fin_semana.sql`: correrla DOS veces en una base desechable de MySQL 8 (NO se pudo probar aquí: no hay MySQL en el contenedor); la verificación debe dar 2 filas.

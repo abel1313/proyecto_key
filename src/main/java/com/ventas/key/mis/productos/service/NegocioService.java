@@ -52,6 +52,8 @@ public class NegocioService {
                 .tiktokUrl(config.isAbierto() ? null : config.getTiktokUrl())
                 .horaApertura(config.getHoraApertura() != null ? config.getHoraApertura().format(fmt) : null)
                 .horaCierre(config.getHoraCierre() != null ? config.getHoraCierre().format(fmt) : null)
+                .horaAperturaFinSemana(config.getHoraAperturaFinSemana() != null ? config.getHoraAperturaFinSemana().format(fmt) : null)
+                .horaCierreFinSemana(config.getHoraCierreFinSemana() != null ? config.getHoraCierreFinSemana().format(fmt) : null)
                 .build();
     }
 
@@ -81,6 +83,8 @@ public class NegocioService {
                 .tiktokUrl(config.getTiktokUrl())
                 .horaApertura(config.getHoraApertura() != null ? config.getHoraApertura().format(fmt) : null)
                 .horaCierre(config.getHoraCierre() != null ? config.getHoraCierre().format(fmt) : null)
+                .horaAperturaFinSemana(config.getHoraAperturaFinSemana() != null ? config.getHoraAperturaFinSemana().format(fmt) : null)
+                .horaCierreFinSemana(config.getHoraCierreFinSemana() != null ? config.getHoraCierreFinSemana().format(fmt) : null)
                 .umbralStockBajo(config.getUmbralStockBajo() != null
                         ? config.getUmbralStockBajo() : ConfiguracionNegocio.UMBRAL_DEFAULT_STOCK_BAJO)
                 .direccion(config.getDireccion())
@@ -100,6 +104,11 @@ public class NegocioService {
         return getConfig();
     }
 
+    /** Vacio o null = sin horario propio ese dia (vuelve a valer el de entre semana). */
+    private static LocalDateTime horaOpcional(String texto, LocalDate hoy, DateTimeFormatter fmt) {
+        return texto == null || texto.isBlank() ? null : LocalDateTime.of(hoy, LocalTime.parse(texto.trim(), fmt));
+    }
+
     @Transactional
     public NegocioConfigDto actualizarHorario(HorarioUpdateDto dto) {
         ConfiguracionNegocio config = obtenerConfig();
@@ -110,6 +119,10 @@ public class NegocioService {
         }
         if (dto.getHoraCierre() != null) {
             config.setHoraCierre(LocalDateTime.of(hoy, LocalTime.parse(dto.getHoraCierre(), fmt)));
+        }
+        if (dto.getHoraAperturaFinSemana() != null || dto.getHoraCierreFinSemana() != null) {
+            config.setHoraAperturaFinSemana(horaOpcional(dto.getHoraAperturaFinSemana(), hoy, fmt));
+            config.setHoraCierreFinSemana(horaOpcional(dto.getHoraCierreFinSemana(), hoy, fmt));
         }
         config.setActualizadoEn(LocalDateTime.now());
         repo.save(config);
