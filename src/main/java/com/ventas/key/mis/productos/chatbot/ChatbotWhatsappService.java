@@ -295,7 +295,7 @@ public class ChatbotWhatsappService extends ChatbotBase {
         if (direccion != null) {
             sb.append("- Dirección del local: ").append(direccion).append('\n');
         }
-        sb.append("- Para VER la ubicación en el mapa: {{TIENDA}}/login (al entrar a la aplicación aparece la ubicación)\n");
+        sb.append("- Dónde VER la ubicación: {{TIENDA}}/login (es la página de inicio de sesión de nuestra aplicación; ahí aparece la ubicación). No es un mapa que tú envíes\n");
         if (horarioDeAtencion != null && !horarioDeAtencion.isBlank()) {
             sb.append("- Horario de atención con una persona: ").append(horarioDeAtencion.trim())
                     .append(" (di SIEMPRE los días junto con las horas)\n");
@@ -315,6 +315,8 @@ public class ChatbotWhatsappService extends ChatbotBase {
                       llego», «mándame la ubicación», «no entiendo», «dame la ubicación exacta»), NO repitas la dirección:
                       mándalo a la aplicación, donde aparece la ubicación: {{TIENDA}}/login. NUNCA digas que no tenemos
                       ubicación ni que solo vendemos en línea.
+                    - Con la liga de la aplicación NUNCA digas «te paso el mapa», «aquí está el mapa» ni «te mando la
+                      ubicación»: tú no envías ningún mapa. Di: «Puedes ver la ubicación en nuestra aplicación: {{TIENDA}}/login».
                     - Nunca contestes dos veces lo mismo con las mismas palabras ni cierres con frases de relleno como
                       «si tienes más preguntas, no dudes en preguntar»: si ya lo dijiste, da el paso siguiente.
                     - Eso es la UBICACIÓN: NO listes las zonas de entrega al contestarla.
